@@ -17,6 +17,7 @@ object Settings {
     val enemy: Lord            = Lord ("Enemy",  (6, 6), RGBA.Yellow)
     val lords: List[Lord]      = List (player, enemy)
     val lordAIs: List [LordAI] = List (BasicLord (enemy))
+    //val lordAIs: List [LordAI] = List (BasicLord (player), BasicLord (enemy))
     val terrain: Terrain       =
       Terrain (rows, columns, numberOfMaterials, lords, depositsPerZone, homeMaterialDeposits,
                levelOffsetPerMaterial, levelsPerPriceMaterial)

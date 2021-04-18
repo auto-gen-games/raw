@@ -110,7 +110,7 @@ object AITests extends TestSuite {
 
     "update within rounds" - {
       val world0      = world.update
-      val model0      = GameModel (world0, lordAIs, Some (Seconds (1)), Seconds.zero)
+      val model0      = nextRound (GameModel (world0, lordAIs, Some (Seconds (1)), Seconds.zero), Seconds.zero)._1
       val model1      = updateWithinRound (model0, gameTime (1, 1))
       val world1      = afterEnactedPlan (model1)
       val model2      = updateWithinRound (model1, gameTime (2, 1))
@@ -137,7 +137,7 @@ object AITests extends TestSuite {
 
     "model update" - {
       val world0      = world.update
-      val model0      = GameModel (world0, lordAIs, Some (Seconds (0.1)), Seconds.zero)
+      val model0      = nextRound (GameModel (world0, lordAIs, Some (Seconds (0.1)), Seconds.zero), Seconds.zero)._1
       val (model1, _) = GameModel.update (model0, gameTime (0.01, 0.01))
       val world1      = afterEnactedPlan (model1)
       val (model2, _) = GameModel.update (model1, gameTime (0.02, 0.01))

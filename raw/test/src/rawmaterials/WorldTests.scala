@@ -200,7 +200,18 @@ object WorldTests extends TestSuite {
         "produce"   - { world.produce;    assert (true) }
         "enact"     - { world.enactTasks; assert (true) }
         "construct" - { world.construct;  assert (true) }
-        "conquer"   - { world.conquer;    assert (true) }
+
+        "conquer"   - {
+          val left   = moved (player.home, 0, -1, rows, columns)
+          val world1 = world
+            .update
+            .removeAllocationsBy (player)
+            .addToAllocation (Task (player.home, 0, left, Siege (player)), 1)
+          val world2 = world1.conquer
+
+          "no siege" - { assert (world2.reserve (left, Siege (player), 0) == 0) }
+        }
+
         "update"    - { world.update;     assert (true) }
       }
 

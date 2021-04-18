@@ -261,6 +261,7 @@ case class World (terrain: Terrain,
           val newDefence = world.reservesAtSink (position, Siege (strongest)).map (m => (m._1, m._2 / 2))
           world.changeOwner (position, strongest)
             .removeAllocationsAt (position)
+            .removeAllocationsTo (position)
             .removeReserves (position, lords.map (Siege.apply))
             .setReserves (position, Defence, newDefence)
             .log (SectorConquered (position, strongest))
@@ -324,6 +325,9 @@ case class World (terrain: Terrain,
 
   def removeAllocationsAt (position: Position): World =
     copy (allocations = allocations.filterNot (_._1.source == position))
+
+  def removeAllocationsTo (position: Position): World =
+    copy (allocations = allocations.filterNot (_._1.target == position))
 
   def removeAllocationsBy (lord: Lord): World =
     copy (allocations = allocations.filterNot (ta => owner.get (ta._1.source).contains (lord)))
