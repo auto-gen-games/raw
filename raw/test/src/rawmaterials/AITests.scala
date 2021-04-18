@@ -13,8 +13,13 @@ import utest._
 
 object AITests extends TestSuite {
   val tests: Tests = Tests {
-    def seconds (time: Int): GameTime         = GameTime (Seconds (time), Seconds (1), FPS (60))
-    def ailord  (model: GameModel): BasicLord = model.controllers.head.asInstanceOf[BasicLord]
+    def gameTime (seconds: Double, diff: Double): GameTime = GameTime (Seconds (seconds), Seconds (diff), FPS (60))
+    def ailord   (model: GameModel): BasicLord = model.controllers.head.asInstanceOf[BasicLord]
+    def afterEnactedPlan (model: GameModel): World =
+      ailord (model).currentReasoning match {
+        case Some (plan) => enactTransfers (enemy, plan.currentResult, model.world)
+        case None => model.world
+      }
 
     "ReasoningState" - {
       val consumer = Consumer ((0, 2), Hub, 10L)
@@ -23,11 +28,11 @@ object AITests extends TestSuite {
         world.terrain.materials.map (material => (material, Nil)).toMap[Material, List[Consumer]]
       val singleConsumer =
         world.terrain.materials.map (material => (material, Nil)).toMap[Material, List[Consumer]] + (1 -> List (consumer))
-      val state0 = ReasoningState (emptyConsumers, emptyConsumers, world)
+      val state0 = ReasoningState (emptyConsumers, emptyConsumers, Nil)
       val state1 = state0.addConsumer (1, consumer)
       val state2 = state1.removeConsumer (1, consumer)
       val state3 = state1.reduceRequired (1, consumer, 6L)
-      val state4 = ReasoningState (emptyConsumers, singleConsumer, world)
+      val state4 = ReasoningState (emptyConsumers, singleConsumer, Nil)
       val state5 = state4.activateConsumer (1)
 
       "addConsumer"      - { assert ( state1.activeConsumers (1).contains (consumer)) }
@@ -79,8 +84,8 @@ object AITests extends TestSuite {
       val step0 = ProducerAllocation (enemy.home, 0, 2)
       val step1 = ProducerAllocation (enemy.home, 1, 1)
 
-      "step 0" - { step0.execute (state); assert (true) }
-      "step 1" - { step1.execute (state); assert (true) }
+      "step 0" - { step0.perform (world1, state); assert (true) }
+      "step 1" - { step1.perform (world1, state); assert (true) }
     }
 
     "complete execution" - {
@@ -88,7 +93,7 @@ object AITests extends TestSuite {
         .increaseProduction (enemy.home, 0, 2)
         .increaseProduction (enemy.home, 1, 1)
       val compute = planComputation (enemy, world1)
-      val world2  = compute.performAll.currentResult.world
+      val world2  = enactTransfers (enemy, compute.performAll.currentResult, world1)
       val feed    = Task (enemy.home, 0, enemy.home, ProducerFeed (1))
 
       "producer 0" -
@@ -103,45 +108,47 @@ object AITests extends TestSuite {
         { assert (world2.allocations.toList.exists (ta => ta._1.source == enemy.home && ta._1.material == 1 && ta._2 == 1L)) }
     }
 
-    "model update" - {
-      val world1      = world.update
-      val model0      = GameModel (world1, lordAIs, Some (Seconds (1)), Seconds.zero)
-      val model1      = updateWithinRound (model0, seconds (1))
-      val model2      = updateWithinRound (model1, seconds (2))
+    "update within rounds" - {
+      val world0      = world.update
+      val model0      = GameModel (world0, lordAIs, Some (Seconds (1)), Seconds.zero)
+      val model1      = updateWithinRound (model0, gameTime (1, 1))
+      val world1      = afterEnactedPlan (model1)
+      val model2      = updateWithinRound (model1, gameTime (2, 1))
+      val world2      = afterEnactedPlan (model2)
       val size1       = model1.controllers.head.asInstanceOf[BasicLord].currentReasoning.map (_.sizeRemaining).getOrElse (0)
       val size2       = model2.controllers.head.asInstanceOf[BasicLord].currentReasoning.map (_.sizeRemaining).getOrElse (0)
-      val (model3, _) = nextRound (model2, seconds (3).running)
+      val (model3, _) = nextRound (model2, gameTime (3, 1).running)
       val model4      = (1 until allocationPeriod).foldLeft (model3) {
-        case (model, round) => nextRound (model, seconds (3 + round).running)._1
+        case (model, round) => nextRound (model, gameTime (3 + round, 1).running)._1
       }
-      val model5      = updateWithinRound (model4, seconds (allocationPeriod + 3))
-      val model6      = updateWithinRound (model5, seconds (allocationPeriod + 4))
+      val model5      = updateWithinRound (model4, gameTime (allocationPeriod + 3, 1))
 
       "initially unready" - { assert (!readyToProceed (model0)) }
       "unplanned"         - { assert (ailord (model0).currentReasoning.isEmpty) }
       "planned"           - { assert (ailord (model1).currentReasoning.nonEmpty) }
-      "unallocated"       - { assert (model1.world.tasksAllocatedBy (enemy).isEmpty) }
+      "unallocated"       - { assert (world1.tasksAllocatedBy (enemy).isEmpty) }
       "unexecuted"        - { assert (ailord (model1).currentReasoning.exists (!_.isCompleted)) }
       "executed"          - { assert (size2 < size1) }
-      "sink chosen"       - { assert (model2.world.allocations.keys.exists (task => task.source == enemy.home && (task.sink == Defence || task.sink.isInstanceOf[Siege] || task.sink.isInstanceOf[ProducerBuilder]))) }
+      "sink chosen"       - { assert (world2.allocations.keys.exists (task => task.source == enemy.home && (task.sink == Defence || task.sink.isInstanceOf[Siege] || task.sink.isInstanceOf[ProducerBuilder]))) }
       "ready"             - { assert (readyToProceed (model2)) }
       "unplanned again"   - { assert (ailord (model3).currentReasoning.isEmpty) }
       "remaining"         - { assert (ailord (model3).timeToReallocation == allocationPeriod - 1) }
-      "siege included"    - { assert (ailord (model5).currentReasoning.exists (_.currentResult.additionalConsumers (0).exists (_.sink.isInstanceOf[Siege]))) }
-    }
+      "siege included"    - { assert (ailord (model5).currentReasoning.exists (_.currentResult.additionalConsumers (0).exists (_.sink.isInstanceOf[Siege]))) } }
 
-    "log sinks" - {
-      val world1 = world.update
-      val model0 = GameModel (world1, lordAIs, Some (Seconds (1)), Seconds.zero)
-      val result = (1 until allocationPeriod * 30).foldLeft (model0) {
-        case (model, round) =>
-          var next = nextRound (model, seconds (round + 1).running)._1
-          while (!readyToProceed (next))
-            next = updateWithinRound (next, seconds (round + 1))
-          next
-      }
-      println (result.world.tasksAllocatedBy (enemy).map (task => s"$task: ${result.world.allocations.getOrElse (task, 0)}"))
-      assert (true)
+    "model update" - {
+      val world0      = world.update
+      val model0      = GameModel (world0, lordAIs, Some (Seconds (0.1)), Seconds.zero)
+      val (model1, _) = GameModel.update (model0, gameTime (0.01, 0.01))
+      val world1      = afterEnactedPlan (model1)
+      val (model2, _) = GameModel.update (model1, gameTime (0.02, 0.01))
+      val (model3, _) = GameModel.update (model2, gameTime (0.11, 0.09))
+
+      "unplanned"       - { assert (ailord (model0).currentReasoning.isEmpty) }
+      "planned"         - { assert (ailord (model1).currentReasoning.nonEmpty) }
+      "unallocated"     - { assert (world1.tasksAllocatedBy (enemy).isEmpty) }
+      "ready"           - { assert (readyToProceed (model2)) }
+      "unplanned again" - { assert (ailord (model3).currentReasoning.isEmpty) }
+      "last tick"       - { assert (model3.lastTick == Seconds (0.11)) }
     }
   }
 }

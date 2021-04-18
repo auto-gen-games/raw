@@ -9,7 +9,7 @@ case class GameModel (world: World, controllers: List[LordAI], tickPeriod: Optio
 object GameModel {
   def apply (world: World, controllers: List[LordAI]): GameModel =
     //GameModel (world, controllers, None, Seconds.zero)
-    GameModel (world, controllers, Some (Seconds (0.01)), Seconds.zero)
+    GameModel (world, controllers, Some (Seconds (0.1)), Seconds.zero)
 
   def update (model: GameModel, gameTime: GameTime): (GameModel, List[OccurrenceEvent]) =
     model.tickPeriod match {
@@ -22,25 +22,26 @@ object GameModel {
     }
 
   def updateWithinRound (model: GameModel, gameTime: GameTime): GameModel = {
-    val (updatedWorld, updatedControllers) =
-      model.controllers.foldLeft[(World, List[LordAI])] ((model.world, Nil)) {
-        case ((world, newControllers), controller) =>
-          val (newWorld, newController) = controller.update (world, gameTime)
-          (newWorld, newController :: newControllers)
+    val updatedControllers =
+      model.controllers.foldLeft[List[LordAI]] (Nil) {
+        case (newControllers, controller) =>
+          val newController = controller.planInRound (model.world, gameTime)
+          newController :: newControllers
       }
-    model.copy (world = updatedWorld, controllers = updatedControllers.reverse)
+    model.copy (controllers = updatedControllers.reverse)
   }
 
   def readyToProceed (model: GameModel): Boolean =
     model.controllers.forall (_.readyToProceed (model.world))
 
   def nextRound (model: GameModel, time: Seconds): (GameModel, List[OccurrenceEvent]) = {
-    val updatedWorld = model.world.update
-    val updatedControllers =
-      model.controllers.foldLeft[List[LordAI]] (Nil) {
-        case (newControllers, controller) =>
-          controller.newRoundStarted (updatedWorld) :: newControllers
+    val (plannedWorld, updatedControllers) =
+      model.controllers.foldLeft[(World, List[LordAI])] ((model.world, Nil)) {
+        case ((world, newControllers), controller) =>
+          val (cworld, newController) = controller.completeRound (world)
+          (cworld, newController :: newControllers)
       }
+    val updatedWorld = plannedWorld.update
     (model.copy (world = updatedWorld, controllers = updatedControllers.reverse, lastTick = time),
       updatedWorld.occurrences.map (OccurrenceEvent (_, updatedWorld)))
   }
