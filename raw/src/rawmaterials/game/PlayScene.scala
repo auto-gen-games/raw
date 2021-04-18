@@ -5,7 +5,7 @@ import indigo.scenes.{Lens, Scene, SceneName}
 import indigo.shared.events.MouseEvent.{MouseDown, MouseUp, Move}
 import rawmaterials.Settings._
 import rawmaterials.Utilities.moved
-import rawmaterials.game.GameAssets.{cell, defence, fontKey, log, producers, siege}
+import rawmaterials.game.GameAssets.{base, cell, defence, fontKey, log, noProduction, producers, siege}
 import rawmaterials.world.Material
 
 object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
@@ -75,19 +75,17 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
         val y = row * 64 - viewModel.rowOffset
         model.world.owner.get (position).map { lord =>
           val produced = model.world.producersAt (position)
-          val predominant = if (produced.map (_._2).sum == 0) 0 else produced.maxBy (_._2)._1
+          val predominant = if (produced.map (_._2).sum == 0) noProduction else producers (produced.maxBy (_._2)._1)
           val maxSiege = model.world.siegesAt (position).filter (_._2 > 0L).sortBy (_._2).reverse.headOption.map (_._1)
           val defences = model.world.defenceMaterialsAt (position).filter (_._2 > 0L).map (_._1).sorted.reverse.headOption
           Group (List (
+            Some (base.moveTo (x, y)),
             defences.map (material => defence.moveTo (x, y).withAlpha (materialAlpha (material, model.world.terrain.materials.size))),
             maxSiege.map (attacker => siege.moveTo (x, y).withTint (attacker.flag)),
-            Some (producers (predominant)
-              .moveTo (x + 16, y + 16)
-              .withTint (lord.flag))
+            Some (predominant.moveTo (x + 16, y + 16).withTint (lord.flag))
           ).flatten)
         }
-      }
-      ).toList.flatten)
+      }).toList.flatten)
 
   val logbar: Group =
     Group ((for (x <- 0 to Math.ceil (viewportWidth / 20.0).toInt) yield
