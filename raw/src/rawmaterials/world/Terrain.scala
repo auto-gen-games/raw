@@ -1,6 +1,7 @@
 package rawmaterials.world
 
 import scala.util.Random.{nextInt => randomInt}
+import rawmaterials.Settings.materialNames
 
 /** The constant elements of the game world */
 case class Terrain (rows: Int, columns: Int, lords: List[Lord], levelOffsetPerMaterial: Int,
@@ -37,7 +38,7 @@ case class Terrain (rows: Int, columns: Int, lords: List[Lord], levelOffsetPerMa
     position.toString
 
   def materialName (material: Material): String =
-    s"material $material"
+    materialNames (material) //s"material $material"
 
   def producedUsing (material: Material): Option[Material] =
     if (material < materials.size - 1) Some (material + 1) else None

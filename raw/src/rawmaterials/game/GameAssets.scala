@@ -3,7 +3,9 @@ package rawmaterials.game
 import indigo._
 
 object GameAssets {
-  val imageFiles: Set[String] = Set ("base", "cell", "defence", "log", "no-production", "siege", "roboto-font") ++
+  val imageFiles: Set[String] = Set ("base", "cell", "defence", "log", "no-production", "siege", "roboto-font",
+    "balance-option", "build-option", "close-option", "deposits-option", "menu-back", "military-option", "next-option",
+    "option-background", "producers-option", "siege-option", "transport-option") ++
     (0 to 15).map (material => s"producers$material")
   val buttonFiles: Set[String] = Set ()
   val textFiles: Set[String] = Set ()

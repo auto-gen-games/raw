@@ -26,6 +26,9 @@ object Settings {
 
   val minDefenceAlpha    = 0.2
   val maxDefenceAlpha    = 0.8
+  val materialNames      = List ("abundantium", "bountifine", "copiese", "dozeenum", "eaesium", "feasibidium",
+    "generosium", "handium", "intricanium", "justonium", "kinc", "lackel", "meeger", "needium", "obscurium", "powerine")
+
   val rowsVisible        = 8
   val columnsVisible     = 8
   val viewportWidth      = 64 * rowsVisible
