@@ -24,15 +24,13 @@ object Settings {
     val world: World           = World (terrain)
   }
 
-  val minDefenceAlpha    = 0.2
-  val maxDefenceAlpha    = 0.8
-  val materialNames      = List ("abundantium", "bountifine", "copiese", "dozeenum", "eaesium", "feasibidium",
+  val minDefenceAlpha = 0.2
+  val maxDefenceAlpha = 0.8
+
+  val materialNames = List ("abundantium", "bountifine", "copiese", "dozeenum", "eaesium", "feasibidium",
     "generosium", "handium", "intricanium", "justonium", "kinc", "lackel", "meeger", "needium", "obscurium", "powerine")
 
-  val rowsVisible        = 8
-  val columnsVisible     = 8
-  val viewportWidth      = 64 * rowsVisible
-  val viewportHeight     = 64 * columnsVisible + 20
-  val logbarY            = viewportHeight - 20
-  val magnificationLevel = 1
+  val initialViewportWidth  = 512
+  val initialViewportHeight = 522
+  val magnificationLevel    = 1
 }

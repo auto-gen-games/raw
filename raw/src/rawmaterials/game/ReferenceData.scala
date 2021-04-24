@@ -1,3 +1,5 @@
 package rawmaterials.game
 
-case class ReferenceData ()
+import indigo.GameViewport
+
+case class ReferenceData (initialViewport: GameViewport)

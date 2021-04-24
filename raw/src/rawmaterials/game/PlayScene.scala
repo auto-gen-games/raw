@@ -60,8 +60,11 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
     case _ => Outcome (viewModel)
   }
 
-  val background: Group =
-    Group ((for (row <- 0 to rowsVisible; column <- 0 to columnsVisible) yield
+  def rowsVisible    (viewport: GameViewport): Int = (viewport.height - 20) / 64
+  def columnsVisible (viewport: GameViewport): Int = viewport.width / 64
+
+  def background (viewport: GameViewport): Group =
+    Group ((for (row <- 0 to rowsVisible (viewport) + 1; column <- 0 to columnsVisible (viewport) + 1) yield
       cell.moveTo (column * 64, row * 64)).toList)
 
   def materialAlpha (material: Material, materials: Int): Double =
@@ -69,7 +72,7 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
 
   def bases (model: GameModel, viewModel: ViewModel): Group =
     Group ((
-      for (row <- 0 to rowsVisible; column <- 0 to columnsVisible) yield {
+      for (row <- 0 to rowsVisible (viewModel.viewport); column <- 0 to columnsVisible (viewModel.viewport)) yield {
         val position = moved ((row, column), viewModel.topLeft._1, viewModel.topLeft._2, model.world.terrain.rows, model.world.terrain.columns)
         val x = column * 64 - viewModel.columnOffset
         val y = row * 64 - viewModel.rowOffset
@@ -87,17 +90,20 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
         }
       }).toList.flatten)
 
-  val logbar: Group =
-    Group ((for (x <- 0 to Math.ceil (viewportWidth / 20.0).toInt) yield
-      log.moveTo (x * 20, logbarY)).toList)
+  def logbarY (viewport: indigo.GameViewport): Int =
+    viewport.height - 20
+
+  def logbar (viewport: GameViewport): Group =
+    Group ((for (x <- 0 to Math.ceil (viewport.width / 20.0).toInt) yield
+      log.moveTo (x * 20, logbarY (viewport))).toList)
 
   def present (context: FrameContext[ReferenceData], model: GameModel, viewModel: ViewModel): Outcome[SceneUpdateFragment] = {
     Outcome (
       SceneUpdateFragment.empty
-        .addGameLayerNodes (background.moveBy (-viewModel.columnOffset, -viewModel.rowOffset))
+        .addGameLayerNodes (background (viewModel.viewport).moveBy (-viewModel.columnOffset, -viewModel.rowOffset))
         .addGameLayerNodes (bases (model, viewModel))
-        .addUiLayerNodes (logbar)
-        .addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY + 1, 1, fontKey))
+        .addUiLayerNodes (logbar (viewModel.viewport))
+        .addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY (viewModel.viewport) + 1, 1, fontKey))
     )
   }
 }
