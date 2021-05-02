@@ -4,12 +4,13 @@ import indigo.{FrameContext, GameTime, Seconds}
 import rawmaterials.ai.LordAI
 import rawmaterials.world._
 
-case class GameModel (world: World, controllers: List[LordAI], tickPeriod: Option[Seconds], lastTick: Seconds)
+case class GameModel (world: World, controllers: List[LordAI], zone: Option[Position], material: Material,
+  tickPeriod: Option[Seconds], lastTick: Seconds)
 
 object GameModel {
   def apply (world: World, controllers: List[LordAI]): GameModel =
-    //GameModel (world, controllers, None, Seconds.zero)
-    GameModel (world, controllers, Some (Seconds (0.1)), Seconds.zero)
+    //GameModel (world, controllers, None, 0, None, Seconds.zero)
+    GameModel (world, controllers, Some ((0, 0)), 0, Some (Seconds (0.1)), Seconds.zero)
 
   def update (model: GameModel, gameTime: GameTime): (GameModel, List[OccurrenceEvent]) =
     model.tickPeriod match {

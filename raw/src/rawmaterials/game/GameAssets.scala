@@ -4,7 +4,7 @@ import indigo._
 
 object GameAssets {
   val imageFiles: Set[String] = Set ("base", "cell", "defence", "log", "no-production", "siege", "roboto-font",
-    "balance-option", "build-option", "close-option", "deposits-option", "menu-back", "military-option", "next-option",
+    "balance-option", "build-option", "close-option", "deposits-option", "menu-background", "military-option", "next-option",
     "option-background", "producers-option", "siege-option", "transport-option") ++
     (0 to 15).map (material => s"producers$material")
   val buttonFiles: Set[String] = Set ()
@@ -25,12 +25,24 @@ object GameAssets {
   def graphic (asset: String, width: Int, height: Int): Graphic =
     Graphic (0, 0, width, height, 2, materials (asset))
 
-  val base: Graphic            = graphic ("base", 64, 64)
-  val cell: Graphic            = graphic ("cell", 64, 64)
-  val defence: Graphic         = graphic ("defence", 64, 64)
-  val log: Graphic             = graphic ("log", 20, 20)
-  val noProduction: Graphic    = graphic ("no-production", 32, 32)
-  val siege: Graphic           = graphic ("siege", 64, 64)
-  val producers: List[Graphic] = (0 to 15).map (material => graphic (s"producers$material", 32, 32)).toList
-  val fontKey: FontKey         = FontKey ("Roboto font")
+  val base: Graphic              = graphic ("base", 64, 64)
+  val cell: Graphic              = graphic ("cell", 64, 64)
+  val defence: Graphic           = graphic ("defence", 64, 64)
+  val log: Graphic               = graphic ("log", 20, 20)
+  val noProduction: Graphic      = graphic ("no-production", 32, 32)
+  val siege: Graphic             = graphic ("siege", 64, 64)
+  val producers: List[Graphic]   = (0 to 15).map (material => graphic (s"producers$material", 32, 32)).toList
+  val menuBackground: Graphic    = graphic ("menu-background", 32, 32)
+  val optionsBackground: Graphic = graphic ("option-background", 16, 16)
+
+  val options: List[String] =
+    List ("next-option", "deposits-option", "producers-option", "balance-option", "military-option", "build-option",
+      "transport-option", "siege-option", "close-option")
+  val optionIcons: List[Graphic] = options.map (graphic (_, 16, 16))
+  val optionGroup: Map[Int, Int] = Map (0 -> 0, 1 -> 1, 2 -> 1, 3 -> 1, 4 -> 1, 5 -> 2, 6 -> 2, 7 -> 2, 8 -> 3)
+  def optionPos (index: Int): Int = 20 + index * 20 + optionGroup (index) * 40
+
+  val fontKey: FontKey           = FontKey ("Roboto font")
+
+
 }

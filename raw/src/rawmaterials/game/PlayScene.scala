@@ -2,11 +2,12 @@ package rawmaterials.game
 
 import indigo._
 import indigo.scenes.{Lens, Scene, SceneName}
-import indigo.shared.events.MouseEvent.{MouseDown, MouseUp, Move}
+import indigo.shared.events.MouseEvent.{Click, MouseDown, MouseUp, Move}
+import indigo.shared.input.Mouse
 import rawmaterials.Settings._
-import rawmaterials.Utilities.moved
-import rawmaterials.game.GameAssets.{base, cell, defence, fontKey, log, noProduction, producers, siege}
-import rawmaterials.world.Material
+import rawmaterials.Utilities.{moved, within}
+import rawmaterials.game.GameAssets.{base, cell, defence, fontKey, log, menuBackground, noProduction, optionGroup, optionIcons, optionPos, optionsBackground, producers, siege}
+import rawmaterials.world.{Material, Terrain}
 
 object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
   type SceneModel                               = GameModel
@@ -21,6 +22,16 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
     case FrameTick =>
       val (newModel, occurrences) = GameModel.update (model, context.gameTime)
       Outcome (newModel).addGlobalEvents (occurrences)
+    case Click (x, y) =>
+      if (model.zone.nonEmpty)
+        optionOver (x, y) match {
+          case Some (index) =>
+            if (index == 0)
+              Outcome (model.copy (material = within (model.material + 1, model.world.terrain.materials.size)))
+            else Outcome (model)
+          case None => Outcome (model)
+        }
+      else Outcome (model)
     case _ => Outcome (model)
   }
 
@@ -60,6 +71,14 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
     case _ => Outcome (viewModel)
   }
 
+  def optionOver (x: Int, y: Int): Option[Int] =
+    if (y < 0 || y >= 16) None
+    else
+      optionIcons.indices.find { index =>
+        val optionX = optionPos (index)
+        x >= optionX && x < optionX + 16
+      }
+
   def rowsVisible    (viewport: GameViewport): Int = (viewport.height - 20) / 64
   def columnsVisible (viewport: GameViewport): Int = viewport.width / 64
 
@@ -93,17 +112,49 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
   def logbarY (viewport: indigo.GameViewport): Int =
     viewport.height - 20
 
+  def drawBar (graphic: Graphic, graphicWidth: Int, topLeft: (Int, Int), barWidth: Int, tint: RGBA): Group =
+    Group ((for (x <- 0 to Math.ceil (barWidth / graphicWidth.toDouble).toInt) yield
+      graphic.moveTo (topLeft._1 + x * graphicWidth, topLeft._2).withTint (tint).withAlpha (0.5)).toList)
+
   def logbar (viewport: GameViewport): Group =
-    Group ((for (x <- 0 to Math.ceil (viewport.width / 20.0).toInt) yield
-      log.moveTo (x * 20, logbarY (viewport))).toList)
+    drawBar (log, 20, (0, logbarY (viewport)), viewport.width, RGBA.White)
+
+  def tintIfHover (graphic: Graphic, x: Int, mouse: Mouse): Graphic =
+    if (mouse.position.x >= x && mouse.position.x < x + 16 && mouse.position.y >= 0 && mouse.position.y < 16)
+      graphic.withTint (RGBA.Magenta)
+    else graphic
+
+  def titleBar (mouse: Mouse): Group =
+    Group (
+      Group (optionIcons.indices.map { index =>
+        val x = optionPos (index)
+        tintIfHover (optionsBackground.moveTo (x, 0).withTint (RGBA (0.3, 0.3, 0.3)).withAlpha (0.9), x, mouse)
+      }.toList),
+      Group (optionIcons.zipWithIndex.map { case (image, index) => image.moveTo (optionPos (index), 0) })
+    )
+
+  def infoBar (material: Material, viewport: GameViewport, terrain: Terrain): Group =
+    Group (
+      drawBar (menuBackground, 32, (0, 18), viewport.width, RGBA (0.3, 0.3, 0.3)),
+      producers (material).moveTo (0, 18),
+      Text (terrain.materialName (material), 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White))
+    )
+
+  def controls (material: Material, viewport: GameViewport, terrain: Terrain, mouse: Mouse): Group =
+    Group (titleBar (mouse), infoBar (material, viewport, terrain))
 
   def present (context: FrameContext[ReferenceData], model: GameModel, viewModel: ViewModel): Outcome[SceneUpdateFragment] = {
-    Outcome (
-      SceneUpdateFragment.empty
-        .addGameLayerNodes (background (viewModel.viewport).moveBy (-viewModel.columnOffset, -viewModel.rowOffset))
-        .addGameLayerNodes (bases (model, viewModel))
-        .addUiLayerNodes (logbar (viewModel.viewport))
-        .addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY (viewModel.viewport) + 1, 1, fontKey))
-    )
+    Outcome {
+      val worldScene =
+        SceneUpdateFragment.empty
+          .addGameLayerNodes (background (viewModel.viewport).moveBy (-viewModel.columnOffset, -viewModel.rowOffset))
+          .addGameLayerNodes (bases (model, viewModel))
+          .addUiLayerNodes (logbar (viewModel.viewport))
+          .addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY (viewModel.viewport) + 1, 1, fontKey))
+      if (model.zone.nonEmpty)
+        worldScene
+          .addUiLayerNodes (controls (model.material, viewModel.viewport, model.world.terrain, context.mouse))
+      else worldScene
+    }
   }
 }
