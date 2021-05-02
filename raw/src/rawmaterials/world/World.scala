@@ -104,7 +104,7 @@ case class World (terrain: Terrain,
   /** The military strength of the given sink (Defence or a Siege) at the given position. */
   def militaryStrength (position: Position, sink: MilitarySink): Amount =
     materials.map {
-      material => Math.pow (2, material).toLong * reserve (position, sink, material)
+      material => materialStrength (material) * reserve (position, sink, material)
     }.sum
 
   def neighbours (position: Position): List[Position] =

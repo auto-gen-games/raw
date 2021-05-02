@@ -7,7 +7,7 @@ import indigo.shared.input.Mouse
 import rawmaterials.Settings._
 import rawmaterials.Utilities.{moved, within}
 import rawmaterials.game.GameAssets.{base, cell, defence, fontKey, log, menuBackground, noProduction, optionGroup, optionIcons, optionPos, optionsBackground, producers, siege}
-import rawmaterials.world.{Material, Terrain}
+import rawmaterials.world.{Material, Position, Terrain, World}
 
 object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
   type SceneModel                               = GameModel
@@ -112,12 +112,12 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
   def logbarY (viewport: indigo.GameViewport): Int =
     viewport.height - 20
 
-  def drawBar (graphic: Graphic, graphicWidth: Int, topLeft: (Int, Int), barWidth: Int, tint: RGBA): Group =
-    Group ((for (x <- 0 to Math.ceil (barWidth / graphicWidth.toDouble).toInt) yield
-      graphic.moveTo (topLeft._1 + x * graphicWidth, topLeft._2).withTint (tint).withAlpha (0.5)).toList)
+  def drawBar (graphic: Graphic, graphicWidth: Int, topLeft: (Int, Int), barWidth: Int, rows: Int, tint: RGBA): Group =
+    Group ((for (x <- 0 to Math.ceil (barWidth / graphicWidth.toDouble).toInt; y <- 0 until rows) yield
+      graphic.moveTo (topLeft._1 + x * graphicWidth, topLeft._2 + y * graphicWidth).withTint (tint).withAlpha (0.5)).toList)
 
   def logbar (viewport: GameViewport): Group =
-    drawBar (log, 20, (0, logbarY (viewport)), viewport.width, RGBA.White)
+    drawBar (log, 20, (0, logbarY (viewport)), viewport.width, 1, RGBA.White)
 
   def tintIfHover (graphic: Graphic, x: Int, mouse: Mouse): Graphic =
     if (mouse.position.x >= x && mouse.position.x < x + 16 && mouse.position.y >= 0 && mouse.position.y < 16)
@@ -133,15 +133,36 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
       Group (optionIcons.zipWithIndex.map { case (image, index) => image.moveTo (optionPos (index), 0) })
     )
 
-  def infoBar (material: Material, viewport: GameViewport, terrain: Terrain): Group =
+  def infoLines (position: Position, material: Material, view: AllocateView, world: World): List[(String, Long)] =
+    view match {
+      case DepositsView => List (
+        ("Strength", world.terrain.materialStrength (material)),
+        ("Deposit", world.terrain.deposit (position, material).toLong))
+      case _ => List (("Undefined", 0L))
+    }
+
+  def showInfo (lines: List[(String, Long)]): Group =
     Group (
-      drawBar (menuBackground, 32, (0, 18), viewport.width, RGBA (0.3, 0.3, 0.3)),
-      producers (material).moveTo (0, 18),
-      Text (terrain.materialName (material), 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White))
+      lines.zipWithIndex.flatMap {
+        case ((heading, value), index) =>
+          List (Text (heading, 200, index * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)),
+            Text (value.toString, 400, index * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)))
+      }
     )
 
-  def controls (material: Material, viewport: GameViewport, terrain: Terrain, mouse: Mouse): Group =
-    Group (titleBar (mouse), infoBar (material, viewport, terrain))
+  def infoBar (position: Position, material: Material, view: AllocateView, world: World, viewport: GameViewport): Group = {
+    val lines = infoLines (position, material, view, world)
+    Group (
+      drawBar (menuBackground, 32, (0, 18), 200, 1, RGBA (0.3, 0.3, 0.3)),
+      drawBar (log, 20, (200, 18), viewport.width - 200, lines.size, RGBA (0.3, 0.3, 0.3)),
+      producers (material).moveTo (0, 18),
+      Text (world.terrain.materialName (material), 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)),
+      showInfo (lines)
+    )
+  }
+
+  def controls (position: Position, material: Material, view: AllocateView, world: World, viewport: GameViewport, mouse: Mouse): Group =
+    Group (titleBar (mouse), infoBar (position, material, view, world, viewport))
 
   def present (context: FrameContext[ReferenceData], model: GameModel, viewModel: ViewModel): Outcome[SceneUpdateFragment] = {
     Outcome {
@@ -151,10 +172,12 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
           .addGameLayerNodes (bases (model, viewModel))
           .addUiLayerNodes (logbar (viewModel.viewport))
           .addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY (viewModel.viewport) + 1, 1, fontKey))
-      if (model.zone.nonEmpty)
-        worldScene
-          .addUiLayerNodes (controls (model.material, viewModel.viewport, model.world.terrain, context.mouse))
-      else worldScene
+      model.zone match {
+        case Some (position) =>
+          worldScene
+            .addUiLayerNodes (controls (position, model.material, model.allocateView, model.world, viewModel.viewport, context.mouse))
+        case None => worldScene
+      }
     }
   }
 }

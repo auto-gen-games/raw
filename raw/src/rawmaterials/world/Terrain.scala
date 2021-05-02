@@ -40,6 +40,9 @@ case class Terrain (rows: Int, columns: Int, lords: List[Lord], levelOffsetPerMa
   def materialName (material: Material): String =
     materialNames (material) //s"material $material"
 
+  def materialStrength (material: Material): Long =
+    Math.pow (2, material).toLong
+
   def producedUsing (material: Material): Option[Material] =
     if (material < materials.size - 1) Some (material + 1) else None
 
