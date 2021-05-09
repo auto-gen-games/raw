@@ -48,6 +48,12 @@ case class World (terrain: Terrain,
   def allocationsAt (position: Position, material: Material): List[(Task, Amount)] =
     allocations.toList.filter (ta => ta._1.source == position && ta._1.material == material)
 
+  def allocatedExports (position: Position, material: Material): List[(Task, Amount)] =
+    allocationsAt (position, material).filter (_._1.sink == Hub)
+
+  def allocatedImports (position: Position, material: Material): List[(Task, Amount)] =
+    allocations.toList.filter (ta => ta._1.target == position && ta._1.material == material && ta._1.sink == Hub)
+
   /** Get the positions of the producers of the given lord (or all) which consume the given input material. */
   def consumers (input: Material, lord: Option[Lord]): List[(Position, Level)] =
     positions
@@ -62,14 +68,17 @@ case class World (terrain: Terrain,
       .filter (pm => owner.get (pm._1).contains (lord))
       .flatMap (pm => constructionTasksPossible (pm._1, pm._2))
 
+  def producerBuildsPossibleFrom (position: Position, material: Material): List[Material] =
+    materials
+      .filter  (produced => deposit (position, produced) > 0)
+      .filter  (produced => producerUpgradeCostAt (produced, position)._1 == material)
+
   /** The list of construction tasks (producers and defence) that the given material can contribute to
    * at the given position. Producers of materials with no deposit are excluded. */
   def constructionTasksPossible (position: Position, material: Material): List[Task] =
     Task (position, material, position, Defence) ::
-      materials
-        .filter  (produced => deposit (position, produced) > 0)
-        .filter  (produced => producerUpgradeCostAt (produced, position)._1 == material)
-        .flatMap (produced => List.fill (deposits ((position, produced)))(produced))
+      producerBuildsPossibleFrom (position, material)
+        //.flatMap (produced => List.fill (deposits ((position, produced)))(produced))
         .map     (produced => Task (position, material, position, ProducerBuilder (produced)))
 
   def defenceMaterialsAt (position: Position): List[(Material, Amount)] =
@@ -172,7 +181,7 @@ case class World (terrain: Terrain,
     owned (lord).flatMap (neighbours).filterNot (owner.get (_).contains (lord)).distinct
 
   def siegesAt (position: Position): List[(Lord, Amount)] =
-    lords.map (lord => (lord, militaryStrength (position, Siege (lord))))
+    lords.map (lord => (lord, militaryStrength (position, Siege (lord)))).filter (_._2 > 0L)
 
   def siegeTasksPossibleBy (lord: Lord): List[Task] =
     positionMaterials

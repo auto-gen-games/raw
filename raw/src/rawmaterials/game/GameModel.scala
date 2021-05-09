@@ -5,13 +5,13 @@ import rawmaterials.ai.LordAI
 import rawmaterials.world._
 
 case class GameModel (world: World, controllers: List[LordAI], zone: Option[Position],
-  material: Material, allocateView: AllocateView,
+  material: Material, allocateView: AllocateView, militaryView: Boolean,
   tickPeriod: Option[Seconds], lastTick: Seconds)
 
 object GameModel {
   def apply (world: World, controllers: List[LordAI]): GameModel =
-    //GameModel (world, controllers, None, 0, DepositsView, None, Seconds.zero)
-    GameModel (world, controllers, Some ((0, 0)), 0, DepositsView, Some (Seconds (0.1)), Seconds.zero)
+    //GameModel (world, controllers, None, 0, DepositsView, false, None, Seconds.zero)
+    GameModel (world, controllers, Some ((0, 0)), 0, DepositsView, false, Some (Seconds (0.1)), Seconds.zero)
 
   def update (model: GameModel, gameTime: GameTime): (GameModel, List[OccurrenceEvent]) =
     model.tickPeriod match {

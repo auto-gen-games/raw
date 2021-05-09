@@ -5,7 +5,7 @@ import indigo._
 object GameAssets {
   val imageFiles: Set[String] = Set ("base", "cell", "defence", "log", "no-production", "siege", "roboto-font",
     "balance-option", "build-option", "close-option", "deposits-option", "menu-background", "military-option", "next-option",
-    "option-background", "producers-option", "siege-option", "transport-option") ++
+    "option-background", "producers-option", "siege-option", "transport-option", "decrease") ++
     (0 to 15).map (material => s"producers$material")
   val buttonFiles: Set[String] = Set ()
   val textFiles: Set[String] = Set ()
@@ -34,15 +34,20 @@ object GameAssets {
   val producers: List[Graphic]   = (0 to 15).map (material => graphic (s"producers$material", 32, 32)).toList
   val menuBackground: Graphic    = graphic ("menu-background", 32, 32)
   val optionsBackground: Graphic = graphic ("option-background", 16, 16)
-
-  val options: List[String] =
-    List ("next-option", "deposits-option", "producers-option", "balance-option", "military-option", "build-option",
-      "transport-option", "siege-option", "close-option")
-  val optionIcons: List[Graphic] = options.map (graphic (_, 16, 16))
-  val optionGroup: Map[Int, Int] = Map (0 -> 0, 1 -> 1, 2 -> 1, 3 -> 1, 4 -> 1, 5 -> 2, 6 -> 2, 7 -> 2, 8 -> 3)
-  def optionPos (index: Int): Int = 20 + index * 20 + optionGroup (index) * 40
-
   val fontKey: FontKey           = FontKey ("Roboto font")
+
+  val nextOption: Graphic = graphic ("next-option", 16, 16)
+  val optionIcons: List[Graphic] =
+    List (nextOption.flipHorizontal (true), nextOption) ++
+      List ("military-option", "deposits-option", "producers-option", "balance-option", "build-option",
+        "transport-option", "siege-option", "close-option")
+        .map (graphic (_, 16, 16))
+  val decreaseButton: Graphic = graphic ("decrease", 16, 16)
+  val increaseButton: Graphic = decreaseButton.flipVertical (true)
+
+  val optionGroup: List[Int] = List (0, 0, 0, 1, 1, 1, 2, 2, 2, 3)
+  def optionPos (index: Int): Int = 4 + index * 20 + optionGroup (index) * 40
+
 
 
 }

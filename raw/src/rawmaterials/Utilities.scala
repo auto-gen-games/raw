@@ -23,6 +23,9 @@ object Utilities {
   def moved (position: Position, drow: Int, dcolumn: Int, rows: Int, columns: Int): Position =
     (within (position._1 + drow, rows), within (position._2 + dcolumn, columns))
 
+  def moved (position: Position, drow: Int, dcolumn: Int, world: World): Position =
+    moved (position, drow, dcolumn, world.terrain.rows, world.terrain.columns)
+
   def distance (position1: Position, position2: Position, rows: Int, columns: Int): Int =
     (position1._1 - position2._1).abs.min (rows - (position1._1 - position2._1).abs) +
       (position1._2 - position2._2).abs.min (columns - (position1._2 - position2._2).abs)
