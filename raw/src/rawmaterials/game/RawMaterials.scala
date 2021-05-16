@@ -9,10 +9,10 @@ import rawmaterials.Settings.DefaultWorld
 import rawmaterials.game.GameAssets.fontKey
 
 @JSExportTopLevel ("IndigoGame")
-object RawMaterials extends IndigoGame[GameViewport, ReferenceData, GameModel, ViewModel] {
+object RawMaterials extends IndigoGame[GameViewport, ReferenceData, GameModel, GameViewport] {
   val eventFilters: EventFilters = EventFilters.AllowAll
 
-  def scenes (bootData: GameViewport): NonEmptyList[Scene[ReferenceData, GameModel, ViewModel]] =
+  def scenes (bootData: GameViewport): NonEmptyList[Scene[ReferenceData, GameModel, GameViewport]] =
     NonEmptyList (PlayScene)
 
   def initialScene (bootData: GameViewport): Option[SceneName] =
@@ -55,17 +55,17 @@ object RawMaterials extends IndigoGame[GameViewport, ReferenceData, GameModel, V
   def initialModel (startupData: ReferenceData): Outcome[GameModel] =
     Outcome (GameModel (DefaultWorld.world, DefaultWorld.player, DefaultWorld.lordAIs))
 
-  def initialViewModel (startupData: ReferenceData, model: GameModel): Outcome[ViewModel] =
-    Outcome (ViewModel (startupData.initialViewport))
+  def initialViewModel (startupData: ReferenceData, model: GameModel): Outcome[GameViewport] =
+    Outcome (startupData.initialViewport)
 
   def updateModel (context: FrameContext[ReferenceData], model: GameModel): GlobalEvent => Outcome[GameModel] =
     _ => Outcome (model)
 
-  def updateViewModel (context: FrameContext[ReferenceData], model: GameModel, viewModel: ViewModel): GlobalEvent => Outcome[ViewModel] = {
-    case ViewportResize (newViewport) => Outcome (viewModel.copy (viewport = newViewport))
+  def updateViewModel (context: FrameContext[ReferenceData], model: GameModel, viewModel: GameViewport): GlobalEvent => Outcome[GameViewport] = {
+    case ViewportResize (newViewport) => Outcome (newViewport)
     case _ => Outcome (viewModel)
   }
 
-  def present (context: FrameContext[ReferenceData], model: GameModel, viewModel: ViewModel): Outcome[SceneUpdateFragment] =
+  def present (context: FrameContext[ReferenceData], model: GameModel, viewModel: GameViewport): Outcome[SceneUpdateFragment] =
     Outcome (SceneUpdateFragment.empty)
 }

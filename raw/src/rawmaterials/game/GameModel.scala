@@ -1,28 +1,31 @@
 package rawmaterials.game
 
-import indigo.{GameTime, Seconds}
+import indigo.shared.events.MouseEvent.Move
+import indigo.{GameTime, MouseEvent, Seconds}
 import rawmaterials.ai.LordAI
 import rawmaterials.game.Controls.{InfoLine, updateInfoLines}
+import rawmaterials.game.ScrollModel.scroll
 import rawmaterials.world._
 
 case class ControlView (zone: Position, material: Material, allocateView: AllocateView,
                         militaryView: Boolean, infoLines: List[InfoLine])
 
 case class GameModel (world: World, player: Lord, controllers: List[LordAI], controlView: Option[ControlView],
-                      tickPeriod: Option[Seconds], lastTick: Seconds)
+                      scrollModel: ScrollModel, tickPeriod: Option[Seconds], lastTick: Seconds)
 
 object GameModel {
   val emptyControlView: ControlView = ControlView ((0, 0), 0, DepositsView, false, Nil)
 
   def apply (world: World, player: Lord, controllers: List[LordAI]): GameModel =
-    //GameModel (world, player, controllers, None, None, Seconds.zero)
-    openControlView (GameModel (world, player, controllers, None, Some (Seconds (1)), Seconds.zero), player.home)
+    //GameModel (world, player, controllers, None, ScrollModel.initial, None, Seconds.zero)
+    openControlView (GameModel (world, player, controllers, None, ScrollModel.initial, Some (Seconds (1)), Seconds.zero), player.home)
 
   def updateView (model: GameModel): GameModel =
     model.copy (controlView = model.controlView.map (view => updateInfoLines (view, model.player, model.world)))
 
   def openControlView (model: GameModel, position: Position): GameModel =
-    model.copy (controlView = Some (updateInfoLines (emptyControlView.copy (zone = position), model.player, model.world)))
+    model.copy (controlView =
+      Some (updateInfoLines (model.controlView.getOrElse (emptyControlView).copy (zone = position), model.player, model.world)))
 
   def closeControlView (model: GameModel): GameModel =
     model.copy (controlView = None)
@@ -85,4 +88,14 @@ object GameModel {
     (updateView (model.copy (world = updatedWorld, controllers = updatedControllers.reverse, lastTick = time)),
       updatedWorld.occurrences.map (OccurrenceEvent (_, updatedWorld)))
   }
+
+  def scrollFrom (model: GameModel, event: MouseEvent): GameModel =
+    model.copy (scrollModel = model.scrollModel.copy (scrollingFrom = Some (event)))
+
+  def stopScrolling (model: GameModel): GameModel =
+    model.copy (scrollModel = model.scrollModel.copy (scrollingFrom = None))
+
+  def scrollBy (model: GameModel, moveEvent: Move): GameModel =
+    model.copy (scrollModel = scroll (model.scrollModel, moveEvent, model.world.terrain.rows, model.world.terrain.columns))
+
 }

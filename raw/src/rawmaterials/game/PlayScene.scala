@@ -7,22 +7,25 @@ import rawmaterials.Settings._
 import rawmaterials.Utilities.{moved, within}
 import rawmaterials.game.Controls.{adjustOver, controls, optionOver}
 import rawmaterials.game.GameAssets.{base, cell, decreaseButton, defence, fontKey, log, noProduction, producers, siege}
-import rawmaterials.game.GameModel.{setAllocateView, setMaterialView, setMilitaryView, updateView}
+import rawmaterials.game.GameModel.{openControlView, scrollBy, scrollFrom, setAllocateView, setMaterialView, setMilitaryView, stopScrolling, updateView}
 import rawmaterials.world.{Material, Position, Task}
 
-object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
-  type SceneModel                               = GameModel
-  type SceneViewModel                           = ViewModel
-  val name: SceneName                           = SceneName ("PlayScene")
-  val modelLens: Lens[GameModel, GameModel]     = Lens.keepLatest
-  val viewModelLens: Lens[ViewModel, ViewModel] = Lens.keepLatest
-  val eventFilters: EventFilters                = EventFilters.AllowAll
-  val subSystems: Set[SubSystem]                = Set.empty
+object PlayScene extends Scene[ReferenceData, GameModel, GameViewport] {
+  type SceneModel                                     = GameModel
+  type SceneViewModel                                 = GameViewport
+  val name: SceneName                                 = SceneName ("PlayScene")
+  val modelLens: Lens[GameModel, GameModel]           = Lens.keepLatest
+  val viewModelLens: Lens[GameViewport, GameViewport] = Lens.keepLatest
+  val eventFilters: EventFilters                      = EventFilters.AllowAll
+  val subSystems: Set[SubSystem]                      = Set.empty
 
   def updateModel (context: FrameContext[ReferenceData], model: GameModel): GlobalEvent => Outcome[GameModel] = {
     case FrameTick =>
       val (newModel, occurrences) = GameModel.update (model, context.gameTime)
       Outcome (newModel).addGlobalEvents (occurrences)
+    case event@MouseDown (_, _) => Outcome (scrollFrom (model, event))
+    case event@Move (_, _) => Outcome (scrollBy (model, event))
+    case MouseUp (_, _) => Outcome (stopScrolling (model))
     case Click (x, y) =>
       model.controlView match {
         case Some (view) =>
@@ -49,69 +52,42 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
                     else model
                   case None => model
                 }
-              }.getOrElse (model))
+              }.getOrElse (selectZone (x, y, model)))
           }
-        case None => Outcome (model)
+        case None => Outcome (selectZone (x, y, model))
       }
     case _ => Outcome (model)
   }
 
-  def updateViewModel (context: FrameContext[ReferenceData], model: GameModel, viewModel: ViewModel): GlobalEvent => Outcome[ViewModel] = {
-    case event@MouseDown (_, _) => Outcome (viewModel.copy (scrollingFrom = Some (event)))
-    case MouseUp (_, _) => Outcome (viewModel.copy (scrollingFrom = None))
-    case event@Move (newX, newY) =>
-      viewModel.scrollingFrom match {
-        case None => Outcome (viewModel)
-        case Some (mouseEvent) =>
-          val dx = mouseEvent.x - newX
-          val dy = mouseEvent.y - newY
-          var newRowOffset = viewModel.rowOffset + dy
-          var newColumnOffset = viewModel.columnOffset + dx
-          var newPosition = viewModel.topLeft
-          while (newRowOffset < 0) {
-            newRowOffset = 64 + newRowOffset
-            newPosition = moved (newPosition, drow = -1, dcolumn = 0, model.world.terrain.rows, model.world.terrain.columns)
-          }
-          while (newRowOffset >= 64) {
-            newRowOffset = newRowOffset - 64
-            newPosition = moved (newPosition, drow = 1, dcolumn = 0, model.world.terrain.rows, model.world.terrain.columns)
-          }
-          while (newColumnOffset < 0) {
-            newColumnOffset = 64 + newColumnOffset
-            newPosition = moved (newPosition, drow = 0, dcolumn = -1, model.world.terrain.rows, model.world.terrain.columns)
-          }
-          while (newColumnOffset >= 64) {
-            newColumnOffset = newColumnOffset - 64
-            newPosition = moved (newPosition, drow = 0, dcolumn = 1, model.world.terrain.rows, model.world.terrain.columns)
-          }
-          Outcome (viewModel.copy (topLeft = newPosition, rowOffset = newRowOffset, columnOffset = newColumnOffset, scrollingFrom = Some (event)))
-      }
-    case occurrence @ OccurrenceEvent (_, _) =>
-      println (occurrence.message)
-      Outcome (viewModel.copy (logMessage = occurrence.message))
-    case _ => Outcome (viewModel)
+  def selectZone (x: Int, y: Int, model: GameModel): GameModel = {
+    val row    = within (((y - model.scrollModel.columnOffset) / 64) + model.scrollModel.topLeft._1 + 1, model.world.terrain.rows)
+    val column = within (((x - model.scrollModel.rowOffset) / 64) + model.scrollModel.topLeft._2 + 1, model.world.terrain.columns)
+    openControlView (model, (row, column))
   }
+
+  def updateViewModel (context: FrameContext[ReferenceData], model: GameModel, viewModel: GameViewport): GlobalEvent => Outcome[GameViewport] =
+    _ => Outcome (viewModel)
 
   def rowsVisible    (viewport: GameViewport): Int = (viewport.height - 20) / 64
   def columnsVisible (viewport: GameViewport): Int = viewport.width / 64
 
-  def background (selected: Option[Position], topLeft: Position, rows: Int, columns: Int, viewport: GameViewport): Group =
+  def background (selected: Option[Position], scrollModel: ScrollModel, rows: Int, columns: Int, viewport: GameViewport): Group =
     Group ((for (row <- 0 to rowsVisible (viewport) + 1; column <- 0 to columnsVisible (viewport) + 1) yield
-      if (selected.contains ((within (topLeft._1 + row, rows), within (topLeft._2 + column, columns))))
+      if (selected.contains ((within (scrollModel.topLeft._1 + row, rows), within (scrollModel.topLeft._2 + column, columns))))
         cell.moveTo (column * 64, row * 64).withOverlay (Overlay.Color (RGBA (1.0, 1.0, 1.0, 0.5)))
       else
         cell.moveTo (column * 64, row * 64)
-      ).toList)
+      ).toList).moveBy (-scrollModel.columnOffset, -scrollModel.rowOffset)
 
   def materialAlpha (material: Material, materials: Int): Double =
     ((maxDefenceAlpha - minDefenceAlpha) / (materials - 1)) * material + minDefenceAlpha
 
-  def bases (model: GameModel, viewModel: ViewModel): Group =
+  def bases (model: GameModel, scrollModel: ScrollModel, viewport: GameViewport): Group =
     Group ((
-      for (row <- 0 to rowsVisible (viewModel.viewport); column <- 0 to columnsVisible (viewModel.viewport)) yield {
-        val position = moved ((row, column), viewModel.topLeft._1, viewModel.topLeft._2, model.world.terrain.rows, model.world.terrain.columns)
-        val x = column * 64 - viewModel.columnOffset
-        val y = row * 64 - viewModel.rowOffset
+      for (row <- 0 to rowsVisible (viewport); column <- 0 to columnsVisible (viewport)) yield {
+        val position = moved ((row, column), scrollModel.topLeft._1, scrollModel.topLeft._2, model.world.terrain.rows, model.world.terrain.columns)
+        val x = column * 64 - scrollModel.columnOffset
+        val y = row * 64 - scrollModel.rowOffset
         model.world.owner.get (position).map { lord =>
           val produced = model.world.producersAt (position)
           val predominant = if (produced.map (_._2).sum == 0) noProduction else producers (produced.maxBy (_._2)._1)
@@ -137,20 +113,19 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
     drawBar (log, 20, (0, logbarY (viewport)), viewport.width, 1, RGBA.White)
 
 
-  def present (context: FrameContext[ReferenceData], model: GameModel, viewModel: ViewModel): Outcome[SceneUpdateFragment] = {
+  def present (context: FrameContext[ReferenceData], model: GameModel, viewport: GameViewport): Outcome[SceneUpdateFragment] = {
     Outcome {
       val worldScene =
         SceneUpdateFragment.empty
-          .addGameLayerNodes (background (model.controlView.map (_.zone), viewModel.topLeft,
-            model.world.terrain.rows, model.world.terrain.columns, viewModel.viewport)
-            .moveBy (-viewModel.columnOffset, -viewModel.rowOffset))
-          .addGameLayerNodes (bases (model, viewModel))
-          .addUiLayerNodes (logbar (viewModel.viewport))
-          .addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY (viewModel.viewport) + 1, 1, fontKey))
+          .addGameLayerNodes (background (model.controlView.map (_.zone), model.scrollModel,
+            model.world.terrain.rows, model.world.terrain.columns, viewport))
+          .addGameLayerNodes (bases (model, model.scrollModel, viewport))
+          .addUiLayerNodes (logbar (viewport))
+          //.addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY (viewModel.viewport) + 1, 1, fontKey))
       model.controlView match {
         case Some (view) =>
           worldScene
-            .addUiLayerNodes (controls (view, model.player, model.world, viewModel.viewport, context.mouse))
+            .addUiLayerNodes (controls (view, model.player, model.world, viewport, context.mouse))
         case None => worldScene
       }
     }

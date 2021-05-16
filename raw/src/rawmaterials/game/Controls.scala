@@ -3,6 +3,7 @@ package rawmaterials.game
 import indigo.{GameViewport, Graphic, Group, Overlay, RGBA, Text}
 import indigo.shared.input.Mouse
 import rawmaterials.Settings.{adjustableValueX, decreaseX, fixedValueX, increaseX}
+import rawmaterials.Utilities.within
 import rawmaterials.game.GameAssets._
 import rawmaterials.game.PlayScene.drawBar
 import rawmaterials.world._
@@ -11,6 +12,8 @@ object Controls {
   /** The state currently being displayed in the controls. Gives convenience common read methods. */
   case class InfoState (position: Position, material: Material, lord: Lord, world: World) {
     def materialName (material: Material): String = world.terrain.materialName (material)
+    val rows: Int    = world.terrain.rows
+    val columns: Int = world.terrain.columns
   }
 
   /** A line of information to be displayed on the controls, where the value is either a fixed amount or
@@ -33,10 +36,10 @@ object Controls {
       .filter (ta => ta._1.target == target && ta._1.sink == sink)
       .map (_._2).sum
 
-  def neighbourName (from: Position, to: Position): String =
-    if (to._1 < from._1) "north"
-    else if (to._1 > from._1) "south"
-    else if (to._2 < from._2) "west"
+  def neighbourName (from: Position, to: Position, rows: Int, columns: Int): String =
+    if (to._1 == within (from._1 - 1, rows)) "north"
+    else if (to._1 == within (from._1 + 1, rows)) "south"
+    else if (to._2 == within (from._2 - 1, columns)) "west"
     else "east"
 
   type InfoLineGenerator = InfoState => List[InfoLine]
@@ -89,14 +92,14 @@ object Controls {
     TransportView ->
       variableLines[Position] (s => s.world.transportableNeighboursAt (s.position), {
         case (neighbour, state) =>
-          InfoLine (s"Transport to ${neighbourName (state.position, neighbour)}", neighbour, Hub, state)
+          InfoLine (s"Transport to ${neighbourName (state.position, neighbour, state.rows, state.columns)}", neighbour, Hub, state)
       }),
     SiegeView ->
       combinedLines (
         fixedLines (s => InfoLine ("Feed defence", s.position, Defence, s)),
         variableLines[Position] (s => s.world.siegeableNeighboursAt (s.position), {
           case (neighbour, state) =>
-            InfoLine (s"Siege ${neighbourName (state.position, neighbour)}", neighbour, Siege (state.lord), state)
+            InfoLine (s"Siege ${neighbourName (state.position, neighbour, state.rows, state.columns)}", neighbour, Siege (state.lord), state)
         })
       ),
   )
@@ -152,7 +155,7 @@ object Controls {
     )
 
   /** Returns a value if the (x, y) position is over an allocation adjustment button in the given info lines,
-   * where the return value is the line is false for decrease button or true for increase button. */
+   * where the value is the line plus false for decrease button or true for increase button. */
   def adjustOver (x: Int, y: Int, lines: List[InfoLine]): Option[(InfoLine, Boolean)] =
     lines.zipWithIndex.filter (_._1.update.isDefined)
       .flatMap (line => List ((line, false), (line, true)))
@@ -172,6 +175,9 @@ object Controls {
         Text ("military", 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)),
       showInfo (view.infoLines, mouse)
     )
+
+  //def withinControls (x: Int, y: Int): Boolean =
+
 
   def controls (view: ControlView, player: Lord, world: World, viewport: GameViewport, mouse: Mouse): Group =
     Group (titleBar (mouse), infoBar (view, player, world, viewport, mouse))
