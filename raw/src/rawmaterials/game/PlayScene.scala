@@ -3,12 +3,12 @@ package rawmaterials.game
 import indigo._
 import indigo.scenes.{Lens, Scene, SceneName}
 import indigo.shared.events.MouseEvent.{Click, MouseDown, MouseUp, Move}
-import indigo.shared.input.Mouse
 import rawmaterials.Settings._
 import rawmaterials.Utilities.{moved, within}
-import rawmaterials.game.Controls.{AllocateCell, MaterialCell, NumberCell, controls}
-import rawmaterials.game.GameAssets.{base, cell, decreaseButton, defence, fontKey, increaseButton, log, menuBackground, noProduction, optionIcons, optionPos, optionsBackground, producers, siege}
-import rawmaterials.world.{Defence, Hub, Material, Position, ProducerBuilder, ProducerFeed, Siege, Terrain, World}
+import rawmaterials.game.Controls.{adjustOver, controls, optionOver}
+import rawmaterials.game.GameAssets.{base, cell, decreaseButton, defence, fontKey, log, noProduction, producers, siege}
+import rawmaterials.game.GameModel.{setAllocateView, setMaterialView, setMilitaryView, updateView}
+import rawmaterials.world.{Material, Task}
 
 object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
   type SceneModel                               = GameModel
@@ -24,26 +24,35 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
       val (newModel, occurrences) = GameModel.update (model, context.gameTime)
       Outcome (newModel).addGlobalEvents (occurrences)
     case Click (x, y) =>
-      if (model.zone.nonEmpty)
-        optionOver (x, y) match {
-          case Some (0) =>
-            Outcome (model.copy (
-              material = within (model.material - 1, model.world.terrain.materials.size),
-              militaryView = false))
-          case Some (1) =>
-            Outcome (model.copy (
-              material = within (model.material + 1, model.world.terrain.materials.size),
-              militaryView = false))
-          case Some (2) => Outcome (model.copy (militaryView = true))
-          case Some (3) => Outcome (model.copy (allocateView = DepositsView,  militaryView = false))
-          case Some (4) => Outcome (model.copy (allocateView = ProducersView, militaryView = false))
-          case Some (5) => Outcome (model.copy (allocateView = BalanceView,   militaryView = false))
-          case Some (6) => Outcome (model.copy (allocateView = BuildView,     militaryView = false))
-          case Some (7) => Outcome (model.copy (allocateView = TransportView, militaryView = false))
-          case Some (8) => Outcome (model.copy (allocateView = SiegeView,     militaryView = false))
-          case _ => Outcome (model)
-        }
-      else Outcome (model)
+      model.controlView match {
+        case Some (view) =>
+          optionOver (x, y) match {
+            case Some (0) =>
+              Outcome (setMaterialView (model, within (view.material - 1, model.world.terrain.materials.size)))
+            case Some (1) =>
+              Outcome (setMaterialView (model, within (view.material + 1, model.world.terrain.materials.size)))
+            case Some (2) => Outcome (setMilitaryView (model))
+            case Some (3) => Outcome (setAllocateView (model, DepositsView))
+            case Some (4) => Outcome (setAllocateView (model, ProducersView))
+            case Some (5) => Outcome (setAllocateView (model, BalanceView))
+            case Some (6) => Outcome (setAllocateView (model, BuildView))
+            case Some (7) => Outcome (setAllocateView (model, TransportView))
+            case Some (8) => Outcome (setAllocateView (model, SiegeView))
+            case _ =>
+              Outcome (adjustOver (x, y, view.infoLines).map { case (line, isIncrease) =>
+                line.update match {
+                  case Some ((target, sink)) =>
+                    val change = if (isIncrease) 1 else -1
+                    if (line.value + change >= 0)
+                      updateView (model.copy (world = model.world.setAllocation (
+                        Task (view.zone, view.material, target, sink), line.value + change)))
+                    else model
+                  case None => model
+                }
+              }.getOrElse (model))
+          }
+        case None => Outcome (model)
+      }
     case _ => Outcome (model)
   }
 
@@ -82,14 +91,6 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
       Outcome (viewModel.copy (logMessage = occurrence.message))
     case _ => Outcome (viewModel)
   }
-
-  def optionOver (x: Int, y: Int): Option[Int] =
-    if (y < 0 || y >= 16) None
-    else
-      optionIcons.indices.find { index =>
-        val optionX = optionPos (index)
-        x >= optionX && x < optionX + 16
-      }
 
   def rowsVisible    (viewport: GameViewport): Int = (viewport.height - 20) / 64
   def columnsVisible (viewport: GameViewport): Int = viewport.width / 64
@@ -140,10 +141,10 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
           .addGameLayerNodes (bases (model, viewModel))
           .addUiLayerNodes (logbar (viewModel.viewport))
           .addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY (viewModel.viewport) + 1, 1, fontKey))
-      model.zone match {
-        case Some (position) =>
+      model.controlView match {
+        case Some (view) =>
           worldScene
-            .addUiLayerNodes (controls (position, model, viewModel.viewport, context.mouse))
+            .addUiLayerNodes (controls (view, model.player, model.world, viewModel.viewport, context.mouse))
         case None => worldScene
       }
     }

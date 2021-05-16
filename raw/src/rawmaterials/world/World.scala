@@ -188,6 +188,11 @@ case class World (terrain: Terrain,
       .filter (pm => owner.get (pm._1).contains (lord))
       .flatMap (pm => siegeTasksPossibleAt (pm._1) (pm._2))
 
+  def siegeableNeighboursAt (from: Position): List[Position] =
+    owner.get (from).map { lord =>
+      neighbours (from).filterNot (owner.get (_).contains (lord))
+    }.getOrElse (Nil)
+
   /** Get the sieges possible from the given position, i.e. neighbours with a different lord,
    * returning a function from a material to contribute to the siege to the task to do so */
   def siegeTasksPossibleAt (from: Position): Material => List[Task] =
@@ -215,6 +220,10 @@ case class World (terrain: Terrain,
       }
     }.toMap
 
+  def transportableNeighboursAt (from: Position): List[Position] =
+    owner.get (from).map { lord =>
+      neighbours (from).filter (owner.get (_).contains (lord))
+    }.getOrElse (Nil)
 
   //
   // WRITE METHODS

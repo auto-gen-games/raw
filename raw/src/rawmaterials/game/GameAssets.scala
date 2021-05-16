@@ -46,7 +46,7 @@ object GameAssets {
   val increaseButton: Graphic = decreaseButton.flipVertical (true)
 
   val optionGroup: List[Int] = List (0, 0, 0, 1, 1, 1, 2, 2, 2, 3)
-  def optionPos (index: Int): Int = 4 + index * 20 + optionGroup (index) * 40
+  def optionPos (index: Int): Int = 4 + index * 20 + optionGroup (index) * 80
 
 
 

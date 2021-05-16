@@ -53,7 +53,7 @@ object RawMaterials extends IndigoGame[GameViewport, ReferenceData, GameModel, V
   }
 
   def initialModel (startupData: ReferenceData): Outcome[GameModel] =
-    Outcome (GameModel (DefaultWorld.world, DefaultWorld.lordAIs))
+    Outcome (GameModel (DefaultWorld.world, DefaultWorld.player, DefaultWorld.lordAIs))
 
   def initialViewModel (startupData: ReferenceData, model: GameModel): Outcome[ViewModel] =
     Outcome (ViewModel (startupData.initialViewport))

@@ -1,78 +1,114 @@
 package rawmaterials.game
 
-import indigo.shared.input.Mouse
 import indigo.{GameViewport, Graphic, Group, Overlay, RGBA, Text}
-import rawmaterials.Utilities.moved
-import rawmaterials.game.GameAssets.{decreaseButton, fontKey, increaseButton, log, menuBackground, optionIcons, optionPos, optionsBackground, producers}
+import indigo.shared.input.Mouse
+import rawmaterials.Settings.{adjustableValueX, decreaseX, fixedValueX, increaseX}
+import rawmaterials.game.GameAssets._
 import rawmaterials.game.PlayScene.drawBar
-import rawmaterials.world.{Amount, Defence, Hub, Position, ProducerBuilder, ProducerFeed, Siege, Sink, Task}
+import rawmaterials.world._
 
 object Controls {
-  sealed trait ValueCell
-  case class NumberCell   (value: Long) extends ValueCell
-  case class AllocateCell (value: Long) extends ValueCell
-  case class MaterialCell (amount: Long, material: String) extends ValueCell
+  /** The state currently being displayed in the controls. Gives convenience common read methods. */
+  case class InfoState (position: Position, material: Material, lord: Lord, world: World) {
+    def materialName (material: Material): String = world.terrain.materialName (material)
+  }
 
-  def infoLines (position: Position, model: GameModel): List[(String, ValueCell)] = {
-    import model._
-    import world.terrain
-    def allocated (constraints: Task => Boolean): AllocateCell =
-      AllocateCell (world.allocationsAt (position, material).filter (ta => constraints (ta._1)).map (_._2).sum)
-    def allocatedTo (sink: Sink): AllocateCell =
-      allocated (_.sink == sink)
-    if (!model.militaryView)
-      model.allocateView match {
-        case DepositsView => List (
-          ("Strength", NumberCell (terrain.materialStrength (material))),
-          ("Deposit", NumberCell (terrain.deposit (position, material).toLong)))
-        case ProducersView =>
-          val (upgradeMaterial, upgradeAmount) = world.producerUpgradeCostAt (material, position)
-          List (
-            ("Producers", NumberCell (world.producer (position, material))),
-            ("Upgrade",   MaterialCell (upgradeAmount, terrain.materialName (upgradeMaterial))),
-            ("Stored",    NumberCell (world.reserve (position, Hub, material))))
-        case BalanceView =>
-          val made = world.producer (position, material) * model.world.terrain.deposit (position, material).toLong
-          val out  = world.allocationsAt (position, material).map (_._2).sum
-          val in   = world.allocatedImports (position, material).map (_._2).sum
-          List (
-            ("Produced",  NumberCell (made)),
-            ("Allocated", NumberCell (out)),
-            ("Incoming",  NumberCell (in)),
-            ("Balance",   NumberCell (made + in - out)))
-        case BuildView =>
-          world.terrain.producedUsing (material)
-            .map (produced => (s"Feed ${world.terrain.materialName (produced)} mine",
-              allocatedTo (ProducerFeed (produced)))).toList ++
-            world.producerBuildsPossibleFrom (position, material)
-              .map (produced => (s"Build ${world.terrain.materialName (produced)} mine",
-                allocatedTo (ProducerBuilder (produced))))
-        case TransportView =>
-          val exports = world.allocatedExports (position, material)
-          def exportTotal (drow: Int, dcolumn: Int): Amount =
-            exports
-              .filter (_._1.target == moved (position, drow, dcolumn, world))
-              .map (_._2).sum
-          List (
-            ("Transport north", AllocateCell (exportTotal (-1, 0))),
-            ("Transport east",  AllocateCell (exportTotal ( 0, 1))),
-            ("Transport south", AllocateCell (exportTotal ( 1, 0))),
-            ("Transport west",  AllocateCell (exportTotal ( 0, -1)))
-          )
-        case SiegeView =>
-          val lord = world.owner (position)
-          List (
-            ("Feed defence", allocatedTo (Defence)),
-            ("Siege north",  allocated (task => task.sink == Siege (lord) && task.target == moved (position, -1, 0, world))),
-            ("Siege east",   allocated (task => task.sink == Siege (lord) && task.target == moved (position, 0, 1, world))),
-            ("Siege south",  allocated (task => task.sink == Siege (lord) && task.target == moved (position, 1, 0, world))),
-            ("Siege west",   allocated (task => task.sink == Siege (lord) && task.target == moved (position, 0, -1, world)))
-          )
-        case _ => List (("Undefined", NumberCell (0L)))
-      }
-    else
-      ("Defence", NumberCell (world.reserve (position, Defence, material))) ::
-        world.siegesAt (position).map (la => (s"Siege by ${la._1.name}", NumberCell (la._2)))
+  /** A line of information to be displayed on the controls, where the value is either a fixed amount or
+   * an adjustable allocation of material to a given position and sink. */
+  case class InfoLine (label: String, value: Amount, material: Option[String], update: Option[(Position, Sink)])
+
+  object InfoLine {
+    def apply (label: String, value: Amount): InfoLine =
+      InfoLine (label, value, None, None)
+
+    def apply (label: String, value: (Material, Amount), state: InfoState): InfoLine =
+      InfoLine (label, value._2, Some (state.materialName (value._1)), None)
+
+    def apply (label: String, target: Position, sink: Sink, state: InfoState): InfoLine =
+      InfoLine (label, allocatedTo (state, target, sink), None, Some ((target, sink)))
+  }
+
+  def allocatedTo (state: InfoState, target: Position, sink: Sink): Amount =
+    state.world.allocationsAt (state.position, state.material)
+      .filter (ta => ta._1.target == target && ta._1.sink == sink)
+      .map (_._2).sum
+
+  def neighbourName (from: Position, to: Position): String =
+    if (to._1 < from._1) "north"
+    else if (to._1 > from._1) "south"
+    else if (to._2 < from._2) "west"
+    else "east"
+
+  type InfoLineGenerator = InfoState => List[InfoLine]
+
+  def fixedLines (lines: (InfoState => InfoLine)*): InfoLineGenerator =
+    state => lines.map (_ (state)).toList
+
+  def variableLines[Element] (elements: InfoState => Iterable[Element], lines: (Element, InfoState) => InfoLine): InfoLineGenerator =
+    state => elements (state).map (element => lines (element, state)).toList
+
+  def computedLines[Computed] (compute: InfoState => Computed, lines: Computed => List[InfoLine]): InfoLineGenerator =
+    state => lines (compute (state))
+
+  def combinedLines (generator1: InfoLineGenerator, generator2: InfoLineGenerator): InfoLineGenerator =
+    state => generator1 (state) ::: generator2 (state)
+
+  val infoLines: Map[AllocateView, InfoLineGenerator] = Map (
+    DepositsView -> fixedLines (
+      s => InfoLine ("Strength", s.world.terrain.materialStrength (s.material)),
+      s => InfoLine ("Deposit",  s.world.terrain.deposit (s.position, s.material))
+    ),
+    ProducersView -> fixedLines (
+      s => InfoLine ("Producers", s.world.producer (s.position, s.material)),
+      s => InfoLine ("Upgrade", s.world.producerUpgradeCostAt (s.material, s.position), s),
+      s => InfoLine ("Stored",  s.world.reserve (s.position, Hub, s.material))
+    ),
+    BalanceView -> computedLines[(Amount, Amount, Amount)] ({ s =>
+      (s.world.producer (s.position, s.material) * s.world.terrain.deposit (s.position, s.material).toLong,
+        s.world.allocatedImports (s.position, s.material).map (_._2).sum,
+        s.world.allocationsAt (s.position, s.material).map (_._2).sum)
+    }, {
+      case (produced, incoming, allocated) => List (
+        InfoLine ("Produced", produced),
+        InfoLine ("Incoming", incoming),
+        InfoLine ("Allocated", allocated),
+        InfoLine ("Balance", produced + incoming - allocated)
+      )
+    }),
+    BuildView ->
+      combinedLines (
+        variableLines[Material] (s => s.world.terrain.producedUsing (s.material), {
+          case (produced, state) =>
+            InfoLine (s"Feed ${state.materialName (produced)}", state.position, ProducerFeed (produced), state)
+        }),
+        variableLines[Material] (s => s.world.producerBuildsPossibleFrom (s.position, s.material), {
+          case (produced, state) =>
+            InfoLine (s"Build ${state.materialName (produced)} mine", state.position, ProducerBuilder (produced), state)
+        })
+      ),
+    TransportView ->
+      variableLines[Position] (s => s.world.transportableNeighboursAt (s.position), {
+        case (neighbour, state) =>
+          InfoLine (s"Transport to ${neighbourName (state.position, neighbour)}", neighbour, Hub, state)
+      }),
+    SiegeView ->
+      combinedLines (
+        fixedLines (s => InfoLine ("Feed defence", s.position, Defence, s)),
+        variableLines[Position] (s => s.world.siegeableNeighboursAt (s.position), {
+          case (neighbour, state) =>
+            InfoLine (s"Siege ${neighbourName (state.position, neighbour)}", neighbour, Siege (state.lord), state)
+        })
+      ),
+  )
+
+  val militaryLines: InfoLineGenerator =
+    state =>
+      InfoLine ("Defence", state.world.militaryStrength (state.position, Defence)) ::
+        state.world.siegesAt (state.position).map (la => InfoLine (s"Siege by ${la._1.name}", la._2))
+
+  def updateInfoLines (view: ControlView, player: Lord, world: World): ControlView = {
+    val state = InfoState (view.zone, view.material, player, world)
+    view.copy (infoLines = if (view.militaryView) militaryLines (state) else infoLines (view.allocateView)(state))
   }
 
   def tintIfHover (graphic: Graphic, x: Int, y: Int, mouse: Mouse): Graphic =
@@ -89,42 +125,53 @@ object Controls {
       Group (optionIcons.zipWithIndex.map { case (image, index) => image.moveTo (optionPos (index), 0) })
     )
 
+  def optionOver (x: Int, y: Int): Option[Int] =
+    if (y < 0 || y >= 16) None
+    else
+      optionIcons.indices.find { index =>
+        val optionX = optionPos (index)
+        x >= optionX && x < optionX + 16
+      }
 
-  def showInfo (lines: List[(String, ValueCell)], mouse: Mouse): Group =
+  def showInfo (lines: List[InfoLine], mouse: Mouse): Group =
     Group (
-      lines.zipWithIndex.flatMap {
-        case ((heading, value), index) =>
-          List (Text (heading, 200, index * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)),
-            value match {
-              case NumberCell (value) =>
-                Text (value.toString, 375, index * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.White))
-              case AllocateCell (value) =>
-                Group (
-                  tintIfHover (decreaseButton.moveTo (375, index * 20 + 20), 375, index * 20 + 20, mouse),
-                  Text (value.toString, 395, index * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.Yellow)),
-                  tintIfHover (increaseButton.moveTo (415, index * 20 + 18), 415, index * 20 + 20, mouse)
-                )
-              case MaterialCell (amount, material) =>
-                Text (amount + " " + material, 375, index * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.White))
-            })
+      lines.zipWithIndex.flatMap { line =>
+        List (Text (line._1.label, 200, line._2 * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)),
+          line._1.update match {
+            case None =>
+              Text (line._1.value + " " + line._1.material.getOrElse (""), fixedValueX, line._2 * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.White))
+            case Some (_) =>
+              Group (
+                tintIfHover (decreaseButton.moveTo (decreaseX, line._2 * 20 + 20), decreaseX, line._2 * 20 + 20, mouse),
+                Text (line._1.value.toString, adjustableValueX, line._2 * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.Yellow)),
+                tintIfHover (increaseButton.moveTo (increaseX, line._2 * 20 + 18), increaseX, line._2 * 20 + 20, mouse)
+              )
+          })
       }
     )
 
-  def infoBar (position: Position, model: GameModel, viewport: GameViewport, mouse: Mouse): Group = {
-    val lines = infoLines (position, model)
+  /** Returns a value if the (x, y) position is over an allocation adjustment button in the given info lines,
+   * where the return value is the line is false for decrease button or true for increase button. */
+  def adjustOver (x: Int, y: Int, lines: List[InfoLine]): Option[(InfoLine, Boolean)] =
+    lines.zipWithIndex.filter (_._1.update.isDefined)
+      .flatMap (line => List ((line, false), (line, true)))
+      .find { case ((line, index), isIncrease) =>
+        ((!isIncrease && x >= decreaseX && x < decreaseX + 16) || (isIncrease && x > increaseX && x < increaseX + 16)) &&
+          y >= index * 20 + (if (!isIncrease) 20 else 18) && y < index * 20 + (if (!isIncrease) 20 else 18) + 16
+      }.map (lii => (lii._1._1, lii._2))
+
+  def infoBar (view: ControlView, player: Lord, world: World, viewport: GameViewport, mouse: Mouse): Group =
     Group (
       drawBar (menuBackground, 32, (0, 18), 200, 1, RGBA (0.3, 0.3, 0.3)),
-      drawBar (log, 20, (200, 18), viewport.width - 200, lines.size, RGBA (0.3, 0.3, 0.3)),
-      (if (!model.militaryView)
-        Group (producers (model.material).moveTo (0, 18),
-          Text (model.world.terrain.materialName (model.material), 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)))
+      drawBar (log, 20, (200, 18), viewport.width - 200, view.infoLines.size, RGBA (0.3, 0.3, 0.3)),
+      if (!view.militaryView)
+        Group (producers (view.material).moveTo (0, 18),
+          Text (world.terrain.materialName (view.material), 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)))
       else
-        Text ("military", 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White))),
-      showInfo (lines, mouse)
+        Text ("military", 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)),
+      showInfo (view.infoLines, mouse)
     )
-  }
 
-  def controls (position: Position, model: GameModel, viewport: GameViewport, mouse: Mouse): Group =
-    Group (titleBar (mouse), infoBar (position, model, viewport, mouse))
-
+  def controls (view: ControlView, player: Lord, world: World, viewport: GameViewport, mouse: Mouse): Group =
+    Group (titleBar (mouse), infoBar (view, player, world, viewport, mouse))
 }

@@ -2,16 +2,54 @@ package rawmaterials.game
 
 import indigo.{GameTime, Seconds}
 import rawmaterials.ai.LordAI
+import rawmaterials.game.Controls.{InfoLine, updateInfoLines}
 import rawmaterials.world._
 
-case class GameModel (world: World, controllers: List[LordAI], zone: Option[Position],
-  material: Material, allocateView: AllocateView, militaryView: Boolean,
-  tickPeriod: Option[Seconds], lastTick: Seconds)
+case class ControlView (zone: Position, material: Material, allocateView: AllocateView,
+                        militaryView: Boolean, infoLines: List[InfoLine])
+
+case class GameModel (world: World, player: Lord, controllers: List[LordAI], controlView: Option[ControlView],
+                      tickPeriod: Option[Seconds], lastTick: Seconds)
 
 object GameModel {
-  def apply (world: World, controllers: List[LordAI]): GameModel =
-    //GameModel (world, controllers, None, 0, DepositsView, false, None, Seconds.zero)
-    GameModel (world, controllers, Some ((0, 0)), 0, DepositsView, false, Some (Seconds (0.1)), Seconds.zero)
+  val emptyControlView: ControlView = ControlView ((0, 0), 0, DepositsView, false, Nil)
+
+  def apply (world: World, player: Lord, controllers: List[LordAI]): GameModel =
+    //GameModel (world, player, controllers, None, None, Seconds.zero)
+    openControlView (GameModel (world, player, controllers, None, Some (Seconds (1)), Seconds.zero), player.home)
+
+  def updateView (model: GameModel): GameModel =
+    model.copy (controlView = model.controlView.map (view => updateInfoLines (view, model.player, model.world)))
+
+  def openControlView (model: GameModel, position: Position): GameModel =
+    model.copy (controlView = Some (updateInfoLines (emptyControlView.copy (zone = position), model.player, model.world)))
+
+  def closeControlView (model: GameModel): GameModel =
+    model.copy (controlView = None)
+
+  def setAllocateView (model: GameModel, allocateView: AllocateView): GameModel =
+    model.controlView match {
+      case Some (current) =>
+        updateView (model.copy (controlView = Some (current.copy (allocateView = allocateView, militaryView = false))))
+      case None =>
+        model
+    }
+
+  def setMilitaryView (model: GameModel): GameModel =
+    model.controlView match {
+      case Some (current) =>
+        updateView (model.copy (controlView = Some (current.copy (militaryView = true))))
+      case None =>
+        model
+    }
+
+  def setMaterialView (model: GameModel, material: Material): GameModel =
+    model.controlView match {
+      case Some (current) =>
+        updateView (model.copy (controlView = Some (current.copy (material = material, militaryView = false))))
+      case None =>
+        model
+    }
 
   def update (model: GameModel, gameTime: GameTime): (GameModel, List[OccurrenceEvent]) =
     model.tickPeriod match {
@@ -44,7 +82,7 @@ object GameModel {
           (cworld, newController :: newControllers)
       }
     val updatedWorld = plannedWorld.update
-    (model.copy (world = updatedWorld, controllers = updatedControllers.reverse, lastTick = time),
+    (updateView (model.copy (world = updatedWorld, controllers = updatedControllers.reverse, lastTick = time)),
       updatedWorld.occurrences.map (OccurrenceEvent (_, updatedWorld)))
   }
 }

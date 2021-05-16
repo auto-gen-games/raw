@@ -16,8 +16,8 @@ object Settings {
     val player: Lord           = Lord ("Player", (0, 0), RGBA.Cyan)
     val enemy: Lord            = Lord ("Enemy",  (6, 6), RGBA.Yellow)
     val lords: List[Lord]      = List (player, enemy)
-    //val lordAIs: List [LordAI] = List (BasicLord (enemy))
-    val lordAIs: List [LordAI] = List (BasicLord (player), BasicLord (enemy))
+    val lordAIs: List [LordAI] = List (BasicLord (enemy))
+    //val lordAIs: List [LordAI] = List (BasicLord (player), BasicLord (enemy))
     val terrain: Terrain       =
       Terrain (rows, columns, numberOfMaterials, lords, depositsPerZone, homeMaterialDeposits,
                levelOffsetPerMaterial, levelsPerPriceMaterial)
@@ -29,6 +29,11 @@ object Settings {
 
   val materialNames = List ("abundantium", "bountifine", "copiese", "dozeenum", "eaesium", "feasibidium",
     "generosium", "handium", "intricanium", "justonium", "kinc", "lackel", "meeger", "needium", "obscurium", "powerine")
+
+  val decreaseX        = 375
+  val increaseX        = 430
+  val fixedValueX      = 375
+  val adjustableValueX = 395
 
   val initialViewportWidth  = 512
   val initialViewportHeight = 522
