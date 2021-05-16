@@ -8,7 +8,7 @@ import rawmaterials.Utilities.{moved, within}
 import rawmaterials.game.Controls.{adjustOver, controls, optionOver}
 import rawmaterials.game.GameAssets.{base, cell, decreaseButton, defence, fontKey, log, noProduction, producers, siege}
 import rawmaterials.game.GameModel.{setAllocateView, setMaterialView, setMilitaryView, updateView}
-import rawmaterials.world.{Material, Task}
+import rawmaterials.world.{Material, Position, Task}
 
 object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
   type SceneModel                               = GameModel
@@ -95,9 +95,13 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
   def rowsVisible    (viewport: GameViewport): Int = (viewport.height - 20) / 64
   def columnsVisible (viewport: GameViewport): Int = viewport.width / 64
 
-  def background (viewport: GameViewport): Group =
+  def background (selected: Option[Position], topLeft: Position, rows: Int, columns: Int, viewport: GameViewport): Group =
     Group ((for (row <- 0 to rowsVisible (viewport) + 1; column <- 0 to columnsVisible (viewport) + 1) yield
-      cell.moveTo (column * 64, row * 64)).toList)
+      if (selected.contains ((within (topLeft._1 + row, rows), within (topLeft._2 + column, columns))))
+        cell.moveTo (column * 64, row * 64).withOverlay (Overlay.Color (RGBA (1.0, 1.0, 1.0, 0.5)))
+      else
+        cell.moveTo (column * 64, row * 64)
+      ).toList)
 
   def materialAlpha (material: Material, materials: Int): Double =
     ((maxDefenceAlpha - minDefenceAlpha) / (materials - 1)) * material + minDefenceAlpha
@@ -137,7 +141,9 @@ object PlayScene extends Scene[ReferenceData, GameModel, ViewModel] {
     Outcome {
       val worldScene =
         SceneUpdateFragment.empty
-          .addGameLayerNodes (background (viewModel.viewport).moveBy (-viewModel.columnOffset, -viewModel.rowOffset))
+          .addGameLayerNodes (background (model.controlView.map (_.zone), viewModel.topLeft,
+            model.world.terrain.rows, model.world.terrain.columns, viewModel.viewport)
+            .moveBy (-viewModel.columnOffset, -viewModel.rowOffset))
           .addGameLayerNodes (bases (model, viewModel))
           .addUiLayerNodes (logbar (viewModel.viewport))
           .addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY (viewModel.viewport) + 1, 1, fontKey))

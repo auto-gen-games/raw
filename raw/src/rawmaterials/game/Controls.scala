@@ -146,7 +146,8 @@ object Controls {
                 Text (line._1.value.toString, adjustableValueX, line._2 * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.Yellow)),
                 tintIfHover (increaseButton.moveTo (increaseX, line._2 * 20 + 18), increaseX, line._2 * 20 + 20, mouse)
               )
-          })
+          }
+        )
       }
     )
 
