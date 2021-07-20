@@ -9,6 +9,5 @@ case class OccurrenceEvent (occurrence: Occurrence, world: World) extends Global
       s"Producer of ${world.terrain.materialName (material)} built at ${world.terrain.locationName (position)} to level ${world.producer (position, material)}${world.owner.get (position).map (" by " + _.name).getOrElse ("")}"
     case SectorConquered (position, lord) =>
       s"Sector ${world.terrain.locationName (position)} conquered by ${lord.name}"
-    case _ => ""
   }
 }

@@ -68,7 +68,7 @@ case class InterleavedComputation[ReferenceData, ResultModel] (
    * @return The new interleaved computation state after performing more steps
    */
   def performMore (gameTime: GameTime): InterleavedComputation[ReferenceData, ResultModel] =
-    performMoreFrom (gameTime.frameDuration.value, 0L)
+    performMoreFrom (gameTime.frameDuration.toLong, 0L)
 
   /**
    * Recursive helper function to perform at least one step, and then more if there is still time.

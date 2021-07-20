@@ -9,6 +9,7 @@ import rawmaterials.game.Controls.{adjustOver, controls, optionOver}
 import rawmaterials.game.GameAssets.{base, cell, decreaseButton, defence, fontKey, log, noProduction, producers, siege}
 import rawmaterials.game.GameModel.{openControlView, scrollBy, scrollFrom, setAllocateView, setMaterialView, setMilitaryView, stopScrolling, updateView}
 import rawmaterials.world.{Material, Position, Task}
+import indigo.shared.materials.Material.Bitmap
 
 object PlayScene extends Scene[ReferenceData, GameModel, GameViewport] {
   type SceneModel                                     = GameModel
@@ -74,7 +75,7 @@ object PlayScene extends Scene[ReferenceData, GameModel, GameViewport] {
   def background (selected: Option[Position], scrollModel: ScrollModel, rows: Int, columns: Int, viewport: GameViewport): Group =
     Group ((for (row <- 0 to rowsVisible (viewport) + 1; column <- 0 to columnsVisible (viewport) + 1) yield
       if (selected.contains ((within (scrollModel.topLeft._1 + row, rows), within (scrollModel.topLeft._2 + column, columns))))
-        cell.moveTo (column * 64, row * 64).withOverlay (Overlay.Color (RGBA (1.0, 1.0, 1.0, 0.5)))
+        cell.moveTo (column * 64, row * 64).modifyMaterial (_.toImageEffects.withOverlay (Fill.Color (RGBA (1.0, 1.0, 1.0, 0.5))))
       else
         cell.moveTo (column * 64, row * 64)
       ).toList).moveBy (-scrollModel.columnOffset, -scrollModel.rowOffset)
@@ -95,9 +96,9 @@ object PlayScene extends Scene[ReferenceData, GameModel, GameViewport] {
           val defences = model.world.defenceMaterialsAt (position).filter (_._2 > 0L).map (_._1).sorted.reverse.headOption
           Group (List (
             Some (base.moveTo (x, y)),
-            defences.map (material => defence.moveTo (x, y).withAlpha (materialAlpha (material, model.world.terrain.materials.size))),
-            maxSiege.map (attacker => siege.moveTo (x, y).withTint (attacker.flag)),
-            Some (predominant.moveTo (x + 16, y + 16).withTint (lord.flag))
+            defences.map (material => defence.moveTo (x, y).modifyMaterial (_.toImageEffects.withAlpha (materialAlpha (material, model.world.terrain.materials.size)))),
+            maxSiege.map (attacker => siege.moveTo (x, y).modifyMaterial (_.toImageEffects.withTint (attacker.flag))),
+            Some (predominant.moveTo (x + 16, y + 16).modifyMaterial (_.toImageEffects.withTint (lord.flag)))
           ).flatten)
         }
       }).toList.flatten)
@@ -105,27 +106,22 @@ object PlayScene extends Scene[ReferenceData, GameModel, GameViewport] {
   def logbarY (viewport: indigo.GameViewport): Int =
     viewport.height - 20
 
-  def drawBar (graphic: Graphic, graphicWidth: Int, topLeft: (Int, Int), barWidth: Int, rows: Int, tint: RGBA): Group =
-    Group ((for (x <- 0 to Math.ceil (barWidth / graphicWidth.toDouble).toInt; y <- 0 until rows) yield
-      graphic.moveTo (topLeft._1 + x * graphicWidth, topLeft._2 + y * graphicWidth).withTint (tint).withAlpha (0.7)).toList)
-
-  def logbar (viewport: GameViewport): Group =
-    drawBar (log, 20, (0, logbarY (viewport)), viewport.width, 1, RGBA.White)
+  def logbar (viewport: GameViewport): Shape.Box =
+    Shape.Box (Rectangle (Point (0, logbarY (viewport)), Size (viewport.width, 20)), Fill.Color (RGBA.White), Stroke (1, RGBA.White))
 
 
   def present (context: FrameContext[ReferenceData], model: GameModel, viewport: GameViewport): Outcome[SceneUpdateFragment] = {
     Outcome {
       val worldScene =
-        SceneUpdateFragment.empty
-          .addGameLayerNodes (background (model.controlView.map (_.zone), model.scrollModel,
-            model.world.terrain.rows, model.world.terrain.columns, viewport))
-          .addGameLayerNodes (bases (model, model.scrollModel, viewport))
-          .addUiLayerNodes (logbar (viewport))
+        SceneUpdateFragment (
+          background (model.controlView.map (_.zone), model.scrollModel,
+            model.world.terrain.rows, model.world.terrain.columns, viewport),
+          bases (model, model.scrollModel, viewport),
+          logbar (viewport))
           //.addUiLayerNodes (Text (viewModel.logMessage, 1, logbarY (viewModel.viewport) + 1, 1, fontKey))
       model.controlView match {
         case Some (view) =>
-          worldScene
-            .addUiLayerNodes (controls (view, model.player, model.world, viewport, context.mouse))
+          worldScene.addLayer (Layer (controls (view, model.player, model.world, viewport, context.mouse)))
         case None => worldScene
       }
     }

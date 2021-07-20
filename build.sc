@@ -1,63 +1,92 @@
+import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
 import mill._
 import mill.scalalib._
 import mill.scalajslib._
 import mill.scalajslib.api._
 
-import $ivy.`io.indigoengine::mill-indigo:0.6.0`, millindigo._
+import $ivy.`io.indigoengine::mill-indigo:0.9.0`, millindigo._
 
 object raw extends ScalaJSModule with MillIndigo {
-  def scalaVersion   = "2.13.4"
-  def scalaJSVersion = "1.3.1"
+  def scalaVersion   = "3.0.0"
+  def scalaJSVersion = "1.6.0"
 
   val gameAssetsDirectory: os.Path = os.pwd / "assets"
   val showCursor: Boolean          = true
   val title: String                = "Raw Materials"
+  val windowStartWidth: Int        = 532
+  val windowStartHeight: Int       = 512
 
-  val magnification = 1
-  val windowStartHeight = 532 * magnification
-  val windowStartWidth = 512 * magnification
-
-  def ivyDeps = Agg (
-    ivy"io.indigoengine::indigo-json-circe::0.6.0",
-    ivy"io.indigoengine::indigo::0.6.0"
-  )
-
-  def buildGame() = T.command {
-    T {
-      compile()
-      fastOpt()
-      indigoBuild()() // Note the double parenthesis!
+  def buildGame() =
+    T.command {
+      T {
+        compile()
+        fastOpt()
+        indigoBuild()()
+      }
     }
-  }
 
-  def runGame() = T.command {
-    T {
-      compile()
-      fastOpt()
-      indigoRun()() // Note the double parenthesis!
+  def runGame() =
+    T.command {
+      T {
+        compile()
+        fastOpt()
+        indigoRun()()
+      }
     }
-  }
 
-  def buildGameFull() = T.command {
-    T {
-      compile()
-      fullOpt()
-      indigoBuildFull()() // Note the double parenthesis!
-    }
-  }
+  val indigoVersion = "0.9.0"
 
-  def runGameFull() = T.command {
-    T {
-      compile()
-      fullOpt()
-      indigoRunFull()() // Note the double parenthesis!
-    }
-  }
+  def ivyDeps =
+    Agg(
+      ivy"io.indigoengine::indigo-json-circe::$indigoVersion",
+      ivy"io.indigoengine::indigo::$indigoVersion",
+      ivy"io.indigoengine::indigo-extras::$indigoVersion"
+    )
+
+  def scalacOptions = super.scalacOptions() ++ ScalacOptions.compile
 
   object test extends Tests {
-    def ivyDeps = Agg (
-      ivy"com.lihaoyi::utest::0.7.4"
+    def ivyDeps = Agg(
+      ivy"org.scalameta::munit::0.7.26"
     )
-    def testFrameworks = Seq ("utest.runner.Framework")
+
+    def testFramework = "munit.Framework"
+
+    override def moduleKind = T(mill.scalajslib.api.ModuleKind.CommonJSModule)
+
+    def scalacOptions = super.scalacOptions() ++ ScalacOptions.test
   }
+
+}
+
+object ScalacOptions {
+
+  lazy val compile: Seq[String] =
+    Seq(
+      "-deprecation", // Emit warning and location for usages of deprecated APIs.
+      "-encoding",
+      "utf-8",                         // Specify character encoding used by source files.
+      "-feature",                      // Emit warning and location for usages of features that should be imported explicitly.
+      "-language:existentials",        // Existential types (besides wildcard types) can be written and inferred
+      "-language:experimental.macros", // Allow macro definition (besides implementation and application)
+      "-language:higherKinds",         // Allow higher-kinded types
+      "-language:implicitConversions", // Allow definition of implicit functions called views
+      "-unchecked",                    // Enable additional warnings where generated code depends on assumptions.
+      "-Xfatal-warnings"               // Fail the compilation if there are any warnings.
+      // "-language:strictEquality"       // Scala 3 - Multiversal Equality
+    )
+
+  lazy val test: Seq[String] =
+    Seq(
+      "-deprecation", // Emit warning and location for usages of deprecated APIs.
+      "-encoding",
+      "utf-8",                         // Specify character encoding used by source files.
+      "-feature",                      // Emit warning and location for usages of features that should be imported explicitly.
+      "-language:existentials",        // Existential types (besides wildcard types) can be written and inferred
+      "-language:experimental.macros", // Allow macro definition (besides implementation and application)
+      "-language:higherKinds",         // Allow higher-kinded types
+      "-language:implicitConversions", // Allow definition of implicit functions called views
+      "-unchecked"                     // Enable additional warnings where generated code depends on assumptions.
+    )
+
 }

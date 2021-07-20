@@ -1,11 +1,10 @@
 package rawmaterials.game
 
-import indigo.{GameViewport, Graphic, Group, Overlay, RGBA, Text}
+import indigo.{Material as IndigoMaterial, *}
 import indigo.shared.input.Mouse
 import rawmaterials.Settings.{adjustableValueX, decreaseX, fixedValueX, increaseX}
 import rawmaterials.Utilities.within
 import rawmaterials.game.GameAssets._
-import rawmaterials.game.PlayScene.drawBar
 import rawmaterials.world._
 
 object Controls {
@@ -114,16 +113,21 @@ object Controls {
     view.copy (infoLines = if (view.militaryView) militaryLines (state) else infoLines (view.allocateView)(state))
   }
 
-  def tintIfHover (graphic: Graphic, x: Int, y: Int, mouse: Mouse): Graphic =
+  def tintIfHover (box: Shape.Box, x: Int, y: Int, mouse: Mouse): RenderNode =
     if (mouse.position.x >= x && mouse.position.x < x + 16 && mouse.position.y >= y && mouse.position.y < y + 16)
-      graphic.withTint (RGBA.Magenta)
+      box.withFill (Fill.Color (RGBA.Magenta))
+    else box
+
+  def tintIfHover (graphic: Bitmap, x: Int, y: Int, mouse: Mouse): RenderNode =
+    if (mouse.position.x >= x && mouse.position.x < x + 16 && mouse.position.y >= y && mouse.position.y < y + 16)
+      graphic.modifyMaterial (_.toImageEffects.withOverlay (Fill.Color (RGBA.Magenta)))
     else graphic
 
   def titleBar (mouse: Mouse): Group =
     Group (
       Group (optionIcons.indices.map { index =>
         val x = optionPos (index)
-        tintIfHover (optionsBackground.moveTo (x, 0).withTint (RGBA (0.3, 0.3, 0.3)).withAlpha (0.9), x, 0, mouse)
+        tintIfHover (SolidBox (x, 0, 16, 16, RGBA (0.3, 0.3, 0.3)), x, 0, mouse)
       }.toList),
       Group (optionIcons.zipWithIndex.map { case (image, index) => image.moveTo (optionPos (index), 0) })
     )
@@ -139,14 +143,14 @@ object Controls {
   def showInfo (lines: List[InfoLine], mouse: Mouse): Group =
     Group (
       lines.zipWithIndex.flatMap { line =>
-        List (Text (line._1.label, 200, line._2 * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)),
+        List (NormalText (line._1.label, 200, line._2 * 20 + 18, 1, RGBA.White),
           line._1.update match {
             case None =>
-              Text (line._1.value + " " + line._1.material.getOrElse (""), fixedValueX, line._2 * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.White))
+              NormalText (s"${line._1.value} " + line._1.material.getOrElse (""), fixedValueX, line._2 * 20 + 18, 1, RGBA.White)
             case Some (_) =>
               Group (
                 tintIfHover (decreaseButton.moveTo (decreaseX, line._2 * 20 + 20), decreaseX, line._2 * 20 + 20, mouse),
-                Text (line._1.value.toString, adjustableValueX, line._2 * 20 + 18, 1, fontKey).withOverlay (Overlay.Color (RGBA.Yellow)),
+                NormalText (line._1.value.toString, adjustableValueX, line._2 * 20 + 18, 1, RGBA.Yellow),
                 tintIfHover (increaseButton.moveTo (increaseX, line._2 * 20 + 18), increaseX, line._2 * 20 + 20, mouse)
               )
           }
@@ -166,13 +170,13 @@ object Controls {
 
   def infoBar (view: ControlView, player: Lord, world: World, viewport: GameViewport, mouse: Mouse): Group =
     Group (
-      drawBar (menuBackground, 32, (0, 18), 200, 1, RGBA (0.3, 0.3, 0.3)),
-      drawBar (log, 20, (200, 18), viewport.width - 200, view.infoLines.size, RGBA (0.3, 0.3, 0.3)),
+      SolidBox (0, 18, 200, 32, RGBA (0.3, 0.3, 0.3)),
+      SolidBox (200, 18, viewport.width - 200, 20, RGBA (0.3, 0.3, 0.3)),
       if (!view.militaryView)
         Group (producers (view.material).moveTo (0, 18),
-          Text (world.terrain.materialName (view.material), 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)))
+          NormalText (world.terrain.materialName (view.material), 36, 22, 1, RGBA.White))
       else
-        Text ("military", 36, 22, 1, fontKey).withOverlay (Overlay.Color (RGBA.White)),
+        NormalText ("military", 36, 22, 1, RGBA.White),
       showInfo (view.infoLines, mouse)
     )
 

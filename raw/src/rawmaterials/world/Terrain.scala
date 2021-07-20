@@ -14,7 +14,7 @@ case class Terrain (rows: Int, columns: Int, lords: List[Lord], levelOffsetPerMa
   val positionMaterials: List[(Position, Material)] = for (p <- positions; m <- materials) yield (p, m)
 
   val sinks: List[Sink] =
-    List (Hub, Defence) ++ materials.map (ProducerFeed) ++ materials.map (ProducerBuilder) ++ lords.map (Siege)
+    List (Hub, Defence) ++ materials.map (ProducerFeed.apply) ++ materials.map (ProducerBuilder.apply) ++ lords.map (Siege.apply)
 
   def addRandomDepositsAt (position: Position, number: Int): Terrain =
     if (number > 0) {

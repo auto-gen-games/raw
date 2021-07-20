@@ -37,7 +37,7 @@ object RawMaterials extends IndigoGame[GameViewport, ReferenceData, GameModel, G
     def makeFontInfo (unknownChar: FontChar, fontChars: List[FontChar]): FontInfo =
       FontInfo (
         fontKey         = fontKey,
-        fontSpriteSheet = FontSpriteSheet (Material.Textured (AssetName ("roboto-font")), Point (271, 232)),
+        fontSheetBounds = Size (271, 232),
         unknownChar     = unknownChar,
         fontChars       = fontChars,
         caseSensitive   = true,
